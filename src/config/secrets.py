@@ -27,7 +27,7 @@ def loadSecrets() -> dict[str, str]:
     Return dict: {key_name: value}
     Raise RuntimeError jika file tidak ada.
     """
-    secretsPath = Path.home() / ".secrets" / "quant-arb-bot" / ".env"
+    secretsPath = Path.home() / ".secret" / "quant-arb-bot" / ".env"
 
     if not secretsPath.exists():
         raise RuntimeError(

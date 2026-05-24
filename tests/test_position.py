@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from src.position.orphan_checker import checkOrphanAlgoOrders, checkUnprotectedPositions
 from src.position.tracker import reconcilePositions
 
-load_dotenv(os.path.expanduser("~/.secrets/quant-arb-bot/.env"))
+load_dotenv(os.path.expanduser("~/.secret/quant-arb-bot/.env"))
 
 _API_KEY = os.getenv("BINANCE_TESTNET_KEY", "")
 _API_SECRET = os.getenv("BINANCE_TESTNET_SECRET", "")
