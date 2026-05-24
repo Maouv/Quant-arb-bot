@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 
+import ccxt
+
 from src.execution.algo_order import cancelAlgoOrder, listOpenAlgoOrders
 from src.position.orphan_checker import (
     checkOrphanAlgoOrders,
@@ -34,7 +36,10 @@ def runOrphanCheck(
     algoOrders = listOpenAlgoOrders(baseUrl, apiKey, apiSecret)
 
     for order in checkOrphanRegularOrders(fut, spot, openPositions):
-        _cancelOrderSafe(fut, order)
+        if order.get("exchange") == "spot":
+            _cancelSpotOrderSafe(spot, order)
+        else:
+            _cancelFuturesOrderSafe(fut, order)
     for order in checkOrphanAlgoOrders(algoOrders, openPositions):
         _cancelAlgoSafe(str(order["symbol"]), int(str(order["algoId"])), baseUrl, apiKey, apiSecret)
     for pos in checkUnprotectedPositions(openPositions, algoOrders):
@@ -43,12 +48,20 @@ def runOrphanCheck(
         handleManipulationEvent(str(pos.get("symbol", "")), spot, fut, suspended)
 
 
-def _cancelOrderSafe(exchange: object, order: dict[str, object]) -> None:
-    """Cancel regular order, log on failure."""
+def _cancelFuturesOrderSafe(exchange: ccxt.binanceusdm, order: dict[str, object]) -> None:
+    """Cancel futures order via fapiPrivateDeleteOrder (avoids sapi routing)."""
     try:
-        exchange.cancel_order(str(order.get("id")), str(order.get("symbol")))  # type: ignore[attr-defined]
-    except Exception as exc:
-        logger.warning("Cancel order skipped: %s", exc)
+        exchange.fapiPrivateDeleteOrder({"symbol": order.get("symbol"), "orderId": order.get("orderId")})
+    except ccxt.BaseError as exc:
+        logger.warning("Cancel futures order skipped: %s", exc)
+
+
+def _cancelSpotOrderSafe(exchange: ccxt.binance, order: dict[str, object]) -> None:
+    """Cancel spot order via privateDeleteOrder."""
+    try:
+        exchange.privateDeleteOrder({"symbol": order.get("symbol"), "orderId": order.get("orderId")})
+    except ccxt.BaseError as exc:
+        logger.warning("Cancel spot order skipped: %s", exc)
 
 
 def _cancelAlgoSafe(symbol: str, algoId: int, baseUrl: str, apiKey: str, apiSecret: str) -> None:
