@@ -42,7 +42,7 @@ def fetchBookTickerSpot(spotExchange: Any) -> dict[str, BookTicker]:
     GET /api/v3/ticker/bookTicker — semua coins sekaligus.
     Return: {symbol: {bid, ask, bidQty, askQty}}.
     """
-    result = spotExchange.publicGetTickerBookTicker()
+    result = spotExchange.publicGetApiV3TickerBookTicker()
     return {item["symbol"]: {"bid": float(item["bidPrice"]), "ask": float(item["askPrice"]),
                              "bidQty": float(item["bidQty"]), "askQty": float(item["askQty"])}
             for item in result}
@@ -56,7 +56,7 @@ def fetchDepth(exchange: Any, symbol: str, limit: int = 5) -> dict[str, list[lis
     if hasattr(exchange, "fapiPublicGetDepth"):
         result = exchange.fapiPublicGetDepth({"symbol": symbol, "limit": limit})
     else:
-        result = exchange.publicGetDepth({"symbol": symbol, "limit": limit})
+        result = exchange.publicGetApiV3Depth({"symbol": symbol, "limit": limit})
     return {"bids": result["bids"], "asks": result["asks"]}
 
 

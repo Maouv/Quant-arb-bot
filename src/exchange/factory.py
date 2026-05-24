@@ -34,7 +34,9 @@ def createSpotExchange(testnet: bool = True) -> ccxt.binance:
     )
 
     if testnet:
-        exchange.urls["api"] = BASE_DEMO_SPOT
+        exchange.urls["api"]["public"] = f"{BASE_DEMO_SPOT}/api/v3"
+        exchange.urls["api"]["private"] = f"{BASE_DEMO_SPOT}/api/v3"
+        exchange.urls["api"]["v1"] = f"{BASE_DEMO_SPOT}/api/v1"
 
     return exchange
 
