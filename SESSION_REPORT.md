@@ -167,3 +167,37 @@ Architecture Option A (separate process). createBot() intents message_content + 
 ### Verification
 
 ruff check src/discord_ui/ src/ai/ passed, mypy passed. Lines: bot.py 58, commands.py 157, formatter.py 73, alerts.py 72, client.py 46, context_builder.py 94.
+
+
+## Sesi 10 — Tests & Polish
+
+### Files Created
+
+tests/test_signals.py, tests/test_risk_guard.py, tests/test_cost_calculator.py, tests/test_executor.py, tests/test_position.py, tests/test_discord.py, ecosystem.config.js, src/discord_ui/__main__.py
+
+### Files Modified
+
+pyproject.toml — tambah pythonpath = ["."] (pytest import fix) + markers = ["integration: ..."] (custom mark untuk testnet tests). tests/test_connectivity.py — fix typo path ~/.secret/ → ~/.secrets/
+
+### Sesuai Plan
+
+4 test files wajib dari plan/09-tests-validation.md: test_signals.py (14 tests), test_risk_guard.py (10 tests), test_cost_calculator.py (12 tests), test_executor.py (4 tests, testnet). 2 test files tambahan request: test_position.py (9 unit + 3 integration, testnet), test_discord.py (14 tests, unit only).
+
+### Perubahan dari Plan
+
+test_position.py + test_discord.py ditambah atas request (bukan di plan). ecosystem.config.js untuk PM2 process management (2 processes: trading-bot + discord-bot). src/discord_ui/__main__.py untuk enable python -m src.discord_ui entrypoint.
+
+### Verification
+
+ruff check + mypy: 0 errors semua test files. pytest unit tests: 59 passed, 3 skipped (integration tests auto-skip tanpa credentials). test_executor.py + test_position.py (integration) harus run di local machine dengan testnet credentials.
+
+### Test Summary
+
+| File | Tests | Type | Status |
+|------|-------|------|--------|
+| test_signals.py | 14 | unit | 14/14 ✅ |
+| test_risk_guard.py | 10 | unit | 10/10 ✅ |
+| test_cost_calculator.py | 12 | unit | 12/12 ✅ |
+| test_position.py | 9 unit + 3 integration | mixed | 9/9 ✅, 3 skipped |
+| test_discord.py | 14 | unit | 14/14 ✅ |
+| test_executor.py | 4 | integration | run local |
