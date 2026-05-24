@@ -18,7 +18,7 @@ def checkOrphanRegularOrders(
     Order yang symbol-nya tidak ada di openPositions → orphan.
     Return list of orders to cancel.
     """
-    posSymbols = {p.get("info", {}).get("symbol") for p in openPositions}
+    posSymbols = {p.get("symbol") for p in openPositions}
     orphans: list[dict[str, Any]] = []
 
     try:
@@ -34,7 +34,7 @@ def checkOrphanRegularOrders(
         logger.error(f"Failed to fetch futures open orders: {e}")
 
     try:
-        spotOrders = spotExchange.publicGetOpenOrders()
+        spotOrders = spotExchange.privateGetOpenOrders()
         for o in spotOrders:
             if o.get("symbol") not in posSymbols:
                 orphans.append({
@@ -56,7 +56,7 @@ def checkOrphanAlgoOrders(
     Algo order yang symbol-nya tidak ada di openPositions → orphan.
     Return list of algo orders to cancel (by algoId).
     """
-    posSymbols = {p.get("info", {}).get("symbol") for p in openPositions}
+    posSymbols = {p.get("symbol") for p in openPositions}
     return [o for o in openAlgoOrders if o.get("symbol") not in posSymbols]
 
 
@@ -69,7 +69,7 @@ def checkUnprotectedPositions(
     Return list of positions needing emergency SL.
     """
     protectedSymbols = {o.get("symbol") for o in openAlgoOrders}
-    return [p for p in openPositions if p.get("info", {}).get("symbol") not in protectedSymbols]
+    return [p for p in openPositions if p.get("symbol") not in protectedSymbols]
 
 
 def handleManipulationEvent(

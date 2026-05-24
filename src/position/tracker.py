@@ -15,7 +15,7 @@ def fetchOpenPositions(futuresExchange: ccxt.binanceusdm) -> list[dict[str, Any]
     """
     try:
         positions = futuresExchange.fapiPrivateV2GetPositionRisk()
-        return [p for p in positions if float(p.get("info", {}).get("positionAmt", 0)) != 0]
+        return [p for p in positions if float(p.get("positionAmt", 0)) != 0]
     except ccxt.BaseError as e:
         logger.error(f"Failed to fetch open positions: {e}")
         return []
@@ -30,7 +30,7 @@ def reconcilePositions(
     Return list of discrepancy messages.
     """
     discrepancies: list[str] = []
-    apiSymbols = {p.get("info", {}).get("symbol") for p in openPositions}
+    apiSymbols = {p.get("symbol") for p in openPositions}
     logSymbols = {r.get("symbol") for r in tradeLog if not r.get("exit_time")}
 
     for sym in apiSymbols - logSymbols:

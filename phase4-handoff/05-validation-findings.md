@@ -190,6 +190,43 @@ ccxt naming convention untuk spot: method name = endpoint path tanpa `/api/v3/` 
 
 ---
 
+### TEMUAN 7 — KRITIS: orphan_checker.py Method + Raw API Format Salah
+
+**Error:**
+```
+AttributeError: 'binance' object has no attribute 'publicGetOpenOrders'
+```
+
+**Root cause 1 — Wrong visibility prefix:**
+
+`GET /api/v3/openOrders` adalah private endpoint (butuh API key + signature). ccxt method-nya adalah `privateGetOpenOrders()`, bukan `publicGetOpenOrders()`. `publicGet*` di ccxt hanya untuk endpoint yang benar-benar tidak butuh auth.
+
+**Root cause 2 — Raw API vs ccxt unified format:**
+
+`fapiPrivateV2GetPositionRisk()` mengembalikan **raw Binance API response** (flat dict), bukan ccxt unified format yang membungkus data di `"info"`. Tapi di 4 tempat di codebase, posisi di-akses via `p.get("info", {}).get("symbol/positionAmt")` — selalu return `{}` / `0`.
+
+**Impact:**
+- `tracker.py::fetchOpenPositions` → selalu return `[]` (bot pikir tidak ada posisi terbuka)
+- `tracker.py::reconcilePositions` → `apiSymbols` selalu `{None}`
+- `orphan_checker.py::checkOrphanRegularOrders` → `posSymbols` selalu `{None}`, semua order dianggap orphan
+- `orphan_checker.py::checkOrphanAlgoOrders` → `posSymbols` selalu `{None}`
+
+**Mapping fix:**
+
+| File | Yang salah | Yang benar |
+|------|-----------|-----------|
+| `orphan_checker.py` L37 | `spotExchange.publicGetOpenOrders()` | `spotExchange.privateGetOpenOrders()` |
+| `tracker.py` L17 | `p.get("info", {}).get("positionAmt", 0)` | `p.get("positionAmt", 0)` |
+| `tracker.py` L33 | `p.get("info", {}).get("symbol")` | `p.get("symbol")` |
+| `orphan_checker.py` L22 | `p.get("info", {}).get("symbol")` | `p.get("symbol")` |
+| `orphan_checker.py` L55 | `p.get("info", {}).get("symbol")` | `p.get("symbol")` |
+
+**Rule:** `fapiPrivateV2GetPositionRisk()` (dan semua `fapi*Get*` raw methods) → akses key langsung dari dict. Hanya method ccxt unified (`fetch_positions()`, `fetch_balance()` dll) yang punya wrapper `"info"`.
+
+**Files yang difix:** `src/position/tracker.py`, `src/position/orphan_checker.py`
+
+---
+
 ## ITEMS BELUM TERVALIDASI
 
 Yang masih perlu diverifikasi sebelum Phase 5 (mainnet):
