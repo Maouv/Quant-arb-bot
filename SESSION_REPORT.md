@@ -112,3 +112,35 @@ auth.py GET bug fix: signature tidak di-include di params — line requests.get(
 ### Verification
 
 ruff check src/execution/ passed, mypy src/execution/ passed. Total lines: algo_order.py 84, order_placer.py 50, order_monitor.py 65, exit_handler.py 105.
+
+## Sesi 7 — Trade Logging
+
+### Files Created
+
+src/logging_/trade_log.py
+
+### Sesuai Plan
+
+appendTradeRecord append satu JSON line ke logs/trades.jsonl tanpa overwrite. loadTradeLog return [] kalau file tidak ada. buildTradeRecord construct dict dengan semua fields dari spec + trade_id UUID + timestamp ISO8601 UTC.
+
+### Verification
+
+ruff check passed, mypy passed. 60 lines.
+
+## Sesi 8 — Bot Orchestration
+
+### Files Created
+
+src/bot/__init__.py, src/bot/main.py, src/bot/startup.py, src/bot/cycle/ (package: __init__.py, runner.py, monitor.py, entry.py, orphan.py)
+
+### Sesuai Plan
+
+main.py: configureLogging → runStartupSequence → loop runCycle + waitForNextCycle, Ctrl+C graceful shutdown. startup.py: loadSecrets, assert testnet/mainnet guard, create exchanges, fetch balance, fetch exchangeInfo → minNotionals, validateUniverse (filter TRADING symbols), fetchOpenPositions → reconcile, checkUnprotectedPositions, return botState dict. waitForNextCycle clock-aligned sleep. cycle/ split ke 4 submodules: runner.py (entrypoint + error boundary + housekeeping), monitor.py (exit signal detection), entry.py (filter candidates + place entry + SL/TP), orphan.py (orphan detection + cleanup).
+
+### Perubahan
+
+cycle.py monolith (236 lines) di-split ke src/bot/cycle/ subdir package. Import dari luar tidak berubah: from src.bot.cycle import runCycle. TC001 false positive di runner.py di-resolve dengan TYPE_CHECKING guard untuk CostCache.
+
+### Verification
+
+ruff check src/bot/ passed, mypy src/bot/ passed. Lines: runner.py 81, monitor.py 40, entry.py 94, orphan.py 59, __init__.py 5, main.py 35, startup.py 120.
