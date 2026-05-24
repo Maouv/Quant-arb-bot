@@ -227,6 +227,62 @@ AttributeError: 'binance' object has no attribute 'publicGetOpenOrders'
 
 ---
 
+### TEMUAN 8 — KRITIS: cancel_order() Unified Routing ke sapi Bukan fapi
+
+**Error (warning):**
+```
+Cancel order skipped: binanceusdm does not have a testnet/sandbox URL for sapi endpoints
+```
+
+**Root cause:**
+
+`exchange.cancel_order()` adalah ccxt unified method. Pada `ccxt.binanceusdm`, method ini internally routing ke `/sapi/v1/order` (margin/spot cancel endpoint) bukan `/fapi/v1/order`. Di testnet tidak ada sapi — tapi di mainnet juga salah karena futures orders harus dibatalkan via fapi.
+
+**Fix — raw method per exchange type:**
+
+| Exchange | Yang salah | Yang benar |
+|---|---|---|
+| `ccxt.binanceusdm` | `exchange.cancel_order(id, symbol)` | `exchange.fapiPrivateDeleteOrder({"symbol": ..., "orderId": ...})` |
+| `ccxt.binance` (spot) | `exchange.cancel_order(id, symbol)` | `exchange.privateDeleteOrder({"symbol": ..., "orderId": ...})` |
+
+**Perubahan arsitektur:** `_cancelOrderSafe()` (satu fungsi, satu exchange) diganti menjadi dua fungsi terpisah `_cancelFuturesOrderSafe()` dan `_cancelSpotOrderSafe()`, dipanggil conditional berdasarkan `order["exchange"]` field yang sudah ada dari `checkOrphanRegularOrders()`.
+
+**Rule:** Untuk operasi futures, selalu pakai raw `fapi*` methods. Unified ccxt methods (`cancel_order`, `fetch_balance`, `fetch_positions`) tidak reliable pada `binanceusdm` karena routing-nya ke endpoint yang salah.
+
+**File yang difix:** `src/bot/cycle/orphan.py`
+
+---
+
+### TEMUAN 9 — KRITIS: datetime.utcnow() vs datetime.now(UTC) — Timezone Mismatch
+
+**Error:**
+```
+TypeError: can't subtract offset-naive and offset-aware datetimes
+```
+
+**Root cause:**
+
+`botState["lastBalanceRefresh"]` di-set di `startup.py` dengan `datetime.now(UTC)` → timezone-aware (`tzinfo=UTC`).
+
+`shouldRefreshBalance()` di `balance.py` membandingkan dengan `datetime.utcnow()` → timezone-naive (`tzinfo=None`).
+
+Python tidak bisa subtract aware dari naive — `TypeError` langsung crash cycle.
+
+**Fix:**
+```python
+# SALAH
+return datetime.utcnow() - lastRefresh > timedelta(seconds=BALANCE_REFRESH_INTERVAL)
+
+# BENAR
+return datetime.now(UTC) - lastRefresh > timedelta(seconds=BALANCE_REFRESH_INTERVAL)
+```
+
+**Rule:** `datetime.utcnow()` deprecated sejak Python 3.12. Seluruh codebase wajib pakai `datetime.now(UTC)` agar konsisten timezone-aware. Tidak boleh ada `utcnow()` di codebase.
+
+**File yang difix:** `src/position/balance.py`
+
+---
+
 ## ITEMS BELUM TERVALIDASI
 
 Yang masih perlu diverifikasi sebelum Phase 5 (mainnet):

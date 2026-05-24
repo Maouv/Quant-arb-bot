@@ -1,7 +1,7 @@
 """Balance fetching and position sizing."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import ccxt
 
@@ -31,4 +31,4 @@ def computeSizePerPair(availableBalance: float) -> float:
 
 def shouldRefreshBalance(lastRefresh: datetime) -> bool:
     """True if > BALANCE_REFRESH_INTERVAL since lastRefresh."""
-    return datetime.utcnow() - lastRefresh > timedelta(seconds=BALANCE_REFRESH_INTERVAL)
+    return datetime.now(UTC) - lastRefresh > timedelta(seconds=BALANCE_REFRESH_INTERVAL)
