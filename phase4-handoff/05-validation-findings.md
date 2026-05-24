@@ -190,6 +190,36 @@ ccxt naming convention untuk spot: method name = endpoint path tanpa `/api/v3/` 
 
 ---
 
+### TEMUAN 7 — KRITIS: createSpotExchange URL Override Salah
+
+**Error:**
+```
+binance does not have a testnet/sandbox URL for public endpoints
+```
+
+**Root cause:** Bug sama seperti Temuan 5 tapi di `createSpotExchange`. `urls["api"]` di-replace dengan string:
+```python
+# SALAH
+exchange.urls["api"] = "https://demo-api.binance.com"
+```
+
+**Kenapa tidak bisa pakai `urls["test"]` seperti futures:**
+`ccxt.binance().urls["test"]` mengarah ke `testnet.binance.vision` (bukan `demo-api.binance.com`). Keduanya berbeda — demo-api.binance.com adalah Binance Demo Mode dengan key dari demo.binance.com.
+
+**Fix:** Override per-key, hanya `public`, `private`, `v1`:
+```python
+# BENAR
+exchange.urls["api"]["public"]  = "https://demo-api.binance.com/api/v3"
+exchange.urls["api"]["private"] = "https://demo-api.binance.com/api/v3"
+exchange.urls["api"]["v1"]      = "https://demo-api.binance.com/api/v1"
+```
+
+`sapi` dan key lain tetap default (mengarah ke `api.binance.com`) — tidak perlu diubah karena kita tidak pakai sapi di spot demo mode.
+
+**File yang difix:** `src/exchange/factory.py`
+
+---
+
 ## ITEMS BELUM TERVALIDASI
 
 Yang masih perlu diverifikasi sebelum Phase 5 (mainnet):
