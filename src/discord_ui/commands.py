@@ -84,6 +84,7 @@ class TradingCommands(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
         """Respond to bot mention with AI answer. Authorized user only."""
+        await self.bot.process_commands(message)
         if message.author.bot or self.bot.user is None:
             return
         if self.bot.user not in message.mentions:
@@ -96,15 +97,15 @@ class TradingCommands(commands.Cog):
             await message.reply("Tanya apa?")
             return
         async with message.channel.typing():
-            botState: dict[str, object] = {
-                "openPositions": fetchOpenPositions(self.futuresExchange),
-                "availableBalance": fetchFuturesBalance(self.futuresExchange),
-                "trades": loadTradeLog(), "costCache": CostCache(), "logPath": "logs/bot.log",
-            }
             try:
+                botState: dict[str, object] = {
+                    "openPositions": fetchOpenPositions(self.futuresExchange),
+                    "availableBalance": fetchFuturesBalance(self.futuresExchange),
+                    "trades": loadTradeLog(), "costCache": CostCache(),
+                }
                 response = await self.aiClient.chat(buildContext(botState, question))
             except Exception as e:
-                logger.error("AI mention request failed: %s", e)
+                logger.error("AI mention request failed: %s", e, exc_info=True)
                 response = f"AI unavailable: {e}"
         await message.reply(response[:2000])
 

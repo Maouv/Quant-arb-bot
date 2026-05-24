@@ -23,7 +23,14 @@ def createBot() -> commands.Bot:
     intents = discord.Intents.default()
     intents.message_content = True
     intents.guilds = True
-    return commands.Bot(command_prefix="", intents=intents)
+    intents.presences = True
+    intents.members = True
+    return commands.Bot(
+        command_prefix=commands.when_mentioned,
+        intents=intents,
+        status=discord.Status.online,
+        activity=discord.Game(name="Trading 📈"),
+    )
 
 
 async def startBot(token: str) -> None:
@@ -41,6 +48,13 @@ async def startBot(token: str) -> None:
 
     bot = createBot()
     await bot.add_cog(TradingCommands(bot, futuresExchange, aiClient, authorizedUserId))
+
+    @bot.event
+    async def on_command_error(ctx: commands.Context, error: Exception) -> None:  # type: ignore[type-arg]
+        """Suppress CommandNotFound — bot uses slash commands only."""
+        if isinstance(error, commands.CommandNotFound):
+            return
+        logger.error("Command error: %s", error)
 
     @bot.event
     async def on_ready() -> None:

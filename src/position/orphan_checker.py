@@ -28,7 +28,7 @@ def checkOrphanRegularOrders(
                 orphans.append({
                     "exchange": "futures",
                     "symbol": o.get("symbol"),
-                    "orderId": o.get("orderId"),
+                    "id": o.get("orderId"),
                 })
     except ccxt.BaseError as e:
         logger.error(f"Failed to fetch futures open orders: {e}")
@@ -40,7 +40,7 @@ def checkOrphanRegularOrders(
                 orphans.append({
                     "exchange": "spot",
                     "symbol": o.get("symbol"),
-                    "orderId": o.get("orderId"),
+                    "id": o.get("orderId"),
                 })
     except ccxt.BaseError as e:
         logger.error(f"Failed to fetch spot open orders: {e}")

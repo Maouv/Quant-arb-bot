@@ -25,7 +25,6 @@ def buildContext(botState: dict[str, object], query: str) -> list[dict[str, str]
     positions: list[dict[str, object]] = botState.get("openPositions", [])  # type: ignore[assignment]
     trades: list[dict[str, object]] = botState.get("trades", [])  # type: ignore[assignment]
     costCache: CostCache | None = botState.get("costCache")  # type: ignore[assignment]
-    logPath: str = botState.get("logPath", "logs/bot.log")  # type: ignore[assignment]
     balance: float | None = botState.get("availableBalance")  # type: ignore[assignment]
 
     if positions:
@@ -36,10 +35,6 @@ def buildContext(botState: dict[str, object], query: str) -> list[dict[str, str]
         contextParts.append(f"## Recent Trades\n{summarizeMetrics(trades)}")
     if costCache is not None:
         contextParts.append(f"## Cost Cache\n{summarizeCostCache(costCache)}")
-
-    logSummary = summarizeRecentLogs(str(logPath))
-    if logSummary:
-        contextParts.append(f"## Recent Logs\n{logSummary}")
 
     contextBlock = "\n\n".join(contextParts) if contextParts else "No data available."
     userMessage = f"Context:\n{contextBlock}\n\nQuestion: {query}"

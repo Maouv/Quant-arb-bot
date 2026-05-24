@@ -15,7 +15,7 @@ def configureLogging(logDir: str = "logs") -> logging.Logger:
     """
     Path(logDir).mkdir(exist_ok=True)
 
-    logger = logging.getLogger("bot")
+    logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
     formatStr = "%(asctime)s [%(levelname)s] %(module)s — %(message)s"
@@ -33,5 +33,9 @@ def configureLogging(logDir: str = "logs") -> logging.Logger:
 
     logger.addHandler(fileHandler)
     logger.addHandler(consoleHandler)
+
+    # Suppress DEBUG noise from external libraries
+    for noisy in ("discord", "httpx", "httpcore", "ccxt", "asyncio", "websockets"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     return logger

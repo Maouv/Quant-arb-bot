@@ -73,5 +73,7 @@ def createFuturesExchange(testnet: bool = True) -> ccxt.binanceusdm:
         # fapiPublic, fapiPrivate, fapiPrivateV2, dll → testnet.binancefuture.com
         # Assign dict (bukan string) agar semua endpoint lookup tetap bekerja.
         exchange.urls["api"] = exchange.urls["test"]
+        # apiBackup signals ccxt that this is sandbox → skip sapi (no testnet URL)
+        exchange.urls["apiBackup"] = exchange.urls["test"]
 
     return exchange

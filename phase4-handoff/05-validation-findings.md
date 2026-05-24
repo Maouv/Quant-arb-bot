@@ -305,3 +305,122 @@ cd /root/quant-arb-bot
 ```
 
 Expected: 13/13 PASS setelah spot testnet key ditambahkan ke `.env`.
+
+---
+
+## TEMUAN POST-IMPLEMENTATION LANJUTAN (24 May 2026 — sesi debug bot run)
+
+### TEMUAN 8 — KRITIS: fetch_currencies() Memanggil sapi di Testnet
+
+**Error:**
+```
+Cancel order skipped: binanceusdm does not have a testnet/sandbox URL for sapi endpoints
+```
+
+**Root cause:**
+`ccxt.binanceusdm.fetch_currencies()` memanggil `sapiGetCapitalConfigGetall` (endpoint `sapi/v1/capital/config/getall`). Di testnet, `sapi` tidak ada di `urls["test"]` — hanya ada di `urls["api"]` production.
+
+ccxt punya guard internal di `fetch_currencies()`:
+```python
+# sandbox/testnet does not support sapi endpoints
+apiBackup = self.safe_value(self.urls, 'apiBackup')
+if apiBackup is not None:
+    return None  # skip sapi call
+```
+
+Guard ini hanya aktif kalau `urls['apiBackup']` di-set — yang dilakukan secara otomatis oleh `set_sandbox_mode(True)`. Karena factory pakai URL override manual (`urls["api"] = urls["test"]`), `apiBackup` tidak pernah di-set → `fetch_currencies()` tetap hit production `sapi`.
+
+**Fix:**
+```python
+exchange.urls["api"] = exchange.urls["test"]
+exchange.urls["apiBackup"] = exchange.urls["test"]  # signal ccxt: skip sapi
+```
+
+**File yang difix:** `src/exchange/factory.py`
+
+**Lesson:** Ketika tidak pakai `set_sandbox_mode()`, harus manually replicate semua side effects-nya — termasuk set `apiBackup`.
+
+---
+
+### TEMUAN 9 — BUG: Orphan Cancel Routing ke Exchange yang Salah
+
+**Error:**
+```
+Cancel order skipped: binanceusdm {"code":-2011,"msg":"Unknown order sent."}
+```
+
+**Root cause:**
+`checkOrphanRegularOrders()` mengumpulkan orphan orders dari dua exchange (futures + spot) dan tag setiap order dengan `"exchange": "futures"` atau `"exchange": "spot"`. Tapi `runOrphanCheck()` selalu pass `fut` (futures exchange) ke `_cancelOrderSafe()` tanpa melihat tag:
+
+```python
+# SALAH
+for order in checkOrphanRegularOrders(fut, spot, openPositions):
+    _cancelOrderSafe(fut, order)  # spot orders dikirim ke futures exchange!
+
+# BENAR
+for order in checkOrphanRegularOrders(fut, spot, openPositions):
+    exchange = spot if order.get("exchange") == "spot" else fut
+    _cancelOrderSafe(exchange, order)
+```
+
+Spot order ID tidak dikenal oleh futures exchange → `-2011`.
+
+**Verified:** Ada stale LIMIT BUY `BTCUSDT` di spot testnet account (`orderId: 36567940991`) yang orphan detection berhasil temukan. Detection benar, routing-nya yang salah.
+
+**File yang difix:** `src/bot/cycle/orphan.py`
+
+---
+
+### TEMUAN 10 — BUG: Logging Module Name Mismatch
+
+**Symptom:** Bot jalan tapi tidak ada log di console selain satu baris WARNING.
+
+**Root cause:**
+`configureLogging()` attach handler ke named logger `"bot"`:
+```python
+logger = logging.getLogger("bot")
+```
+
+Semua module pakai `logging.getLogger(__name__)` → nama logger seperti `"src.bot.startup"`, `"src.position.balance"`, dll. Logger ini bukan child dari `"bot"` → tidak inherit handler-nya → log hilang.
+
+**Fix:** Ganti ke root logger:
+```python
+logger = logging.getLogger()  # root logger — semua module logger inherit
+```
+
+**File yang difix:** `src/logging_/setup.py`
+
+**Rule:** Selalu pakai root logger di `configureLogging()`, atau pastikan semua module logger adalah child dari nama yang sama (misal semua pakai `logging.getLogger("bot.xyz")`).
+
+---
+
+### TEMUAN 11 — BUG: Discord on_message Tidak Trigger
+
+**Symptom:** Mention bot di Discord tidak dibalas AI. Slash commands tidak respond.
+
+**Root cause 1 — `command_prefix=""`:**
+Empty string sebagai prefix menyebabkan `commands.Bot` mencoba match setiap message sebagai prefix command, interferring dengan event processing. Error `CommandNotFound: Command "tes"` muncul karena setiap pesan dianggap command.
+
+**Fix:** Ganti ke `commands.when_mentioned` — hanya trigger saat bot di-mention langsung.
+
+**Root cause 2 — `process_commands()` tidak dipanggil di cog:**
+`on_message` listener di cog tidak otomatis memanggil `process_commands()`. Tanpa ini, `commands.Bot` tidak forward message ke event system dengan benar.
+
+**Fix:** Tambah `await self.bot.process_commands(message)` di awal `on_message`.
+
+**Files yang difix:** `src/discord_ui/bot.py`, `src/discord_ui/commands.py`
+
+---
+
+## STATUS TERKINI (24 May 2026 — EOD)
+
+| Komponen | Status |
+|----------|--------|
+| Bot utama (`src.bot.main`) | ✅ Jalan — cycle berjalan, log muncul |
+| Futures exchange testnet | ✅ Connected — balance, positions, orders OK |
+| Spot exchange testnet (private) | ⚠️ Butuh spot testnet key |
+| Discord bot | ✅ Connected ke guild "Crito Maou" |
+| Discord slash commands | ✅ Synced ke guild |
+| Discord AI mention response | 🔧 Fix applied, belum re-verified |
+| Orphan detection | ✅ Benar — deteksi stale spot order |
+| Orphan cancel routing | ✅ Fixed — route ke exchange yang tepat |
