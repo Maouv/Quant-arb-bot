@@ -48,6 +48,8 @@ skips = ["B101"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+pythonpath = ["."]
+markers = ["integration: marks tests requiring live testnet API (deselect with -m 'not integration')"]
 
 [tool.coverage.run]
 source = ["src"]

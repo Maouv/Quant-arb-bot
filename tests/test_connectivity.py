@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 import ccxt
 
 # --- Load secrets ---
-load_dotenv(os.path.expanduser("~/.secret/quant-arb-bot/.env"))
+load_dotenv(os.path.expanduser("~/.secrets/quant-arb-bot/.env"))
 
 API_KEY = os.getenv("BINANCE_TESTNET_KEY")
 API_SECRET = os.getenv("BINANCE_TESTNET_SECRET")
