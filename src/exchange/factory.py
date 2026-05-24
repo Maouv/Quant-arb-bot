@@ -3,7 +3,7 @@
 import ccxt
 
 from src.config.secrets import loadSecrets
-from src.exchange.endpoints import BASE_DEMO_SPOT, BASE_TESTNET_FUTURES
+from src.exchange.endpoints import BASE_DEMO_SPOT
 
 
 def createSpotExchange(testnet: bool = True) -> ccxt.binance:
@@ -67,6 +67,9 @@ def createFuturesExchange(testnet: bool = True) -> ccxt.binanceusdm:
     )
 
     if testnet:
-        exchange.urls["api"] = BASE_TESTNET_FUTURES
+        # urls["test"] berisi dict testnet yang sudah built-in di ccxt:
+        # fapiPublic, fapiPrivate, fapiPrivateV2, dll → testnet.binancefuture.com
+        # Assign dict (bukan string) agar semua endpoint lookup tetap bekerja.
+        exchange.urls["api"] = exchange.urls["test"]
 
     return exchange
