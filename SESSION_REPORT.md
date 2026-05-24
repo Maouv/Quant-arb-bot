@@ -89,3 +89,58 @@ Type annotations menggunakan `dict[str, Any]` untuk mypy strict (bukan bare `dic
 ### Verification
 
 ruff check src/position/ passed, mypy src/position/ passed.
+
+## Sesi 6 Execution Layer
+
+### Files Created
+
+src/execution/__init__.py, src/execution/algo_order.py, src/execution/order_placer.py, src/execution/order_monitor.py, src/execution/exit_handler.py
+
+### Files Modified
+
+src/config/settings.py — tambah MIN_NOTIONAL_FUTURES = 50.0
+src/exchange/auth.py — fix GET request tidak include signature di params
+
+### Sesuai Plan
+
+placeEntryOrders place spot + futures LIMIT GTC bersamaan. calculateQuantity validate notional >= MIN_NOTIONAL_FUTURES. pollOrderFill poll 5s interval, return "filled"|"timeout"|"cancelled". handlePartialFill cancel kedua leg, close filled leg dengan MARKET. placeStopLoss dan placeTakeProfit via raw requests ke /fapi/v1/algoOrder dengan algoType=CONDITIONAL, triggerPrice, workingType=MARK_PRICE. cancelAlgoOrder via algoId (bukan orderId). listOpenAlgoOrders via /fapi/v1/openAlgoOrders (flat array, bukan wrapped). exitNormal limit order + timeout fallback market. exitEmergency market order langsung. _placeAlgoOrder shared helper untuk SL dan TP menghilangkan duplikasi.
+
+### Perubahan
+
+auth.py GET bug fix: signature tidak di-include di params — line requests.get() ditambah params | {"signature": signature}. settings.py tambah MIN_NOTIONAL_FUTURES: float = 50.0 agar tidak magic number di calculateQuantity. _placeAlgoOrder internal helper diekstrak dari placeStopLoss + placeTakeProfit untuk eliminasi duplikasi.
+
+### Verification
+
+ruff check src/execution/ passed, mypy src/execution/ passed. Total lines: algo_order.py 84, order_placer.py 50, order_monitor.py 65, exit_handler.py 105.
+
+## Sesi 7 — Trade Logging
+
+### Files Created
+
+src/logging_/trade_log.py
+
+### Sesuai Plan
+
+appendTradeRecord append satu JSON line ke logs/trades.jsonl tanpa overwrite. loadTradeLog return [] kalau file tidak ada. buildTradeRecord construct dict dengan semua fields dari spec + trade_id UUID + timestamp ISO8601 UTC.
+
+### Verification
+
+ruff check passed, mypy passed. 60 lines.
+
+## Sesi 8 — Bot Orchestration
+
+### Files Created
+
+src/bot/__init__.py, src/bot/main.py, src/bot/startup.py, src/bot/cycle/ (package: __init__.py, runner.py, monitor.py, entry.py, orphan.py)
+
+### Sesuai Plan
+
+main.py: configureLogging → runStartupSequence → loop runCycle + waitForNextCycle, Ctrl+C graceful shutdown. startup.py: loadSecrets, assert testnet/mainnet guard, create exchanges, fetch balance, fetch exchangeInfo → minNotionals, validateUniverse (filter TRADING symbols), fetchOpenPositions → reconcile, checkUnprotectedPositions, return botState dict. waitForNextCycle clock-aligned sleep. cycle/ split ke 4 submodules: runner.py (entrypoint + error boundary + housekeeping), monitor.py (exit signal detection), entry.py (filter candidates + place entry + SL/TP), orphan.py (orphan detection + cleanup).
+
+### Perubahan
+
+cycle.py monolith (236 lines) di-split ke src/bot/cycle/ subdir package. Import dari luar tidak berubah: from src.bot.cycle import runCycle. TC001 false positive di runner.py di-resolve dengan TYPE_CHECKING guard untuk CostCache.
+
+### Verification
+
+ruff check src/bot/ passed, mypy src/bot/ passed. Lines: runner.py 81, monitor.py 40, entry.py 94, orphan.py 59, __init__.py 5, main.py 35, startup.py 120.
