@@ -144,3 +144,26 @@ cycle.py monolith (236 lines) di-split ke src/bot/cycle/ subdir package. Import 
 ### Verification
 
 ruff check src/bot/ passed, mypy src/bot/ passed. Lines: runner.py 81, monitor.py 40, entry.py 94, orphan.py 59, __init__.py 5, main.py 35, startup.py 120.
+
+
+## Sesi 9 — Discord + AI
+
+### Files Created
+
+src/discord_ui/__init__.py, src/discord_ui/bot.py, src/discord_ui/commands.py, src/discord_ui/formatter.py, src/discord_ui/alerts.py, src/ai/__init__.py, src/ai/client.py, src/ai/context_builder.py, src/ai/prompts/system.md
+
+### Files Modified
+
+src/config/secrets.py — tambah 6 keys: DISCORD_BOT_TOKEN, DISCORD_USER_ID, DISCORD_GUILD_ID, AI_BASE_URL, AI_API_KEY, AI_MODEL. src/config/settings.py — tambah DISCORD_ALERT_INTERVAL_SECONDS, DISCORD_ALERT_KEYWORDS, AI_HTTP_TIMEOUT_SECONDS, AI_RECENT_TRADES_FOR_CONTEXT, AI_TOP_COST_COINS. .env.example — tambah Discord + AI block.
+
+### Sesuai Plan
+
+Architecture Option A (separate process). createBot() intents message_content + guilds, no prefix. startBot() load secrets, create futuresExchange + AiClient, add TradingCommands cog, sync slash commands ke guild (fast) atau global. Slash commands: /status, /positions, /metrics, /trades, /health. AI via mention (@bot) bukan /ask — on_message listener di TradingCommands cog, authorized user only, reply max 2000 chars. botState di Discord = on-demand collected dict dari files + live API (Option A). Position format = raw ccxt pos["info"] nested. AlertWatcher cog: tasks.loop 60s, incremental tail bot.log, match DISCORD_ALERT_KEYWORDS, post ke alertChannelId. system.md = verbatim copy dari plan/prompts/system.md (SHA256 identical).
+
+### Perubahan dari Plan
+
+/ask command diganti on_message mention handler (user request). DISCORD_USER_ID + DISCORD_GUILD_ID ditambah ke secrets (authorization + fast guild sync). _computeMetrics dan _parseLastCycleFromLog sebagai private module helpers (required oleh commands, tidak ada di plan tapi bukan fungsi publik baru).
+
+### Verification
+
+ruff check src/discord_ui/ src/ai/ passed, mypy passed. Lines: bot.py 58, commands.py 157, formatter.py 73, alerts.py 72, client.py 46, context_builder.py 94.

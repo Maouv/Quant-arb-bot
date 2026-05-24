@@ -43,3 +43,12 @@ BACKTEST_APY_MID: float = 28.0
 
 # Excluded
 EXCLUDED_SYMBOLS: list[str] = ["NEARUSDT"]
+
+# Discord alerts
+DISCORD_ALERT_INTERVAL_SECONDS: int = 60
+DISCORD_ALERT_KEYWORDS: tuple[str, ...] = ("ERROR", "CRITICAL", "orphan")
+
+# AI
+AI_HTTP_TIMEOUT_SECONDS: float = 60.0
+AI_RECENT_TRADES_FOR_CONTEXT: int = 20
+AI_TOP_COST_COINS: int = 5
