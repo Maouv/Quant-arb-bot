@@ -127,6 +127,69 @@ Semua koreksi sudah di-apply ke `03-api-reference.md`.
 
 ---
 
+---
+
+## TEMUAN POST-IMPLEMENTATION (24 May 2026 — sesi bot run pertama)
+
+### TEMUAN 5 — KRITIS: factory.py URL Override Salah
+
+**Error:**
+```
+binanceusdm does not have a testnet/sandbox URL for fapiPrivateV2 endpoints
+binanceusdm does not have a testnet/sandbox URL for fapiPublic endpoints
+```
+
+**Root cause:**
+```python
+# SALAH — replace seluruh dict dengan string
+exchange.urls["api"] = "https://testnet.binancefuture.com"
+
+# BENAR — assign built-in testnet dict dari ccxt
+exchange.urls["api"] = exchange.urls["test"]
+```
+
+`urls["api"]` di `ccxt.binanceusdm` adalah dict dengan 19 keys (`fapiPublic`, `fapiPrivate`, `fapiPrivateV2`, `sapi`, dll). Ketika di-replace dengan string, semua endpoint lookup `urls["api"]["fapiPublic"]` dll fail karena string tidak punya keys.
+
+**Fix:** `exchange.urls["test"]` adalah dict built-in ccxt yang berisi semua testnet URLs yang benar:
+```python
+{
+    "fapiPublic":    "https://testnet.binancefuture.com/fapi/v1",
+    "fapiPrivate":   "https://testnet.binancefuture.com/fapi/v1",
+    "fapiPrivateV2": "https://testnet.binancefuture.com/fapi/v2",
+    "fapiPublicV2":  "https://testnet.binancefuture.com/fapi/v2",
+    "fapiData":      "https://testnet.binancefuture.com/futures/data",
+    ...
+}
+```
+
+Note: `sapi` tidak ada di `urls["test"]` — ini expected karena sapi tidak tersedia di testnet futures. Operasi yang kita pakai (`fapi*`) semua ada.
+
+**File yang difix:** `src/exchange/factory.py`
+
+---
+
+### TEMUAN 6 — KRITIS: scanner.py ccxt Method Names Salah
+
+**Error:**
+```
+AttributeError: 'binance' object has no attribute 'publicGetApiV3TickerBookTicker'
+```
+
+**Root cause:** Method yang di-call tidak ada di ccxt `binance` object.
+
+**Mapping yang benar (verified via `dir(ccxt.binance())`):**
+
+| Yang salah | Yang benar |
+|-----------|-----------|
+| `publicGetApiV3TickerBookTicker()` | `publicGetTickerBookTicker()` |
+| `publicGetApiV3Depth({"symbol": ..., "limit": ...})` | `publicGetDepth({"symbol": ..., "limit": ...})` |
+
+ccxt naming convention untuk spot: method name = endpoint path tanpa `/api/v3/` prefix, camelCase. Bukan `publicGetApiV3*`.
+
+**File yang difix:** `src/market/scanner.py`
+
+---
+
 ## ITEMS BELUM TERVALIDASI
 
 Yang masih perlu diverifikasi sebelum Phase 5 (mainnet):
