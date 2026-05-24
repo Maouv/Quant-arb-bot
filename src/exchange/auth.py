@@ -37,7 +37,9 @@ def signedRequest(
     headers = {"X-MBX-APIKEY": apiKey}
 
     if method == "GET":
-        response = requests.get(url, params=params, headers=headers, timeout=30)
+        response = requests.get(
+            url, params=params | {"signature": signature}, headers=headers, timeout=30
+        )
     elif method == "POST":
         response = requests.post(
             url, params=params | {"signature": signature}, headers=headers, timeout=30
