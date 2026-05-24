@@ -5,6 +5,21 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+_KEYS: tuple[str, ...] = (
+    "BINANCE_API_KEY",
+    "BINANCE_API_SECRET",
+    "BINANCE_TESTNET_KEY",
+    "BINANCE_TESTNET_SECRET",
+    "BINANCE_TESTNET_SPOT_KEY",
+    "BINANCE_TESTNET_SPOT_SECRET",
+    "DISCORD_BOT_TOKEN",
+    "DISCORD_USER_ID",
+    "DISCORD_GUILD_ID",
+    "AI_BASE_URL",
+    "AI_API_KEY",
+    "AI_MODEL",
+)
+
 
 def loadSecrets() -> dict[str, str]:
     """
@@ -22,18 +37,4 @@ def loadSecrets() -> dict[str, str]:
         )
 
     load_dotenv(secretsPath)
-
-    secrets: dict[str, str] = {}
-    for key in [
-        "BINANCE_API_KEY",
-        "BINANCE_API_SECRET",
-        "BINANCE_TESTNET_KEY",
-        "BINANCE_TESTNET_SECRET",
-        "BINANCE_TESTNET_SPOT_KEY",
-        "BINANCE_TESTNET_SPOT_SECRET",
-    ]:
-        value = os.getenv(key)
-        if value:
-            secrets[key] = value
-
-    return secrets
+    return {key: value for key in _KEYS if (value := os.getenv(key))}
