@@ -89,3 +89,26 @@ Type annotations menggunakan `dict[str, Any]` untuk mypy strict (bukan bare `dic
 ### Verification
 
 ruff check src/position/ passed, mypy src/position/ passed.
+
+## Sesi 6 Execution Layer
+
+### Files Created
+
+src/execution/__init__.py, src/execution/algo_order.py, src/execution/order_placer.py, src/execution/order_monitor.py, src/execution/exit_handler.py
+
+### Files Modified
+
+src/config/settings.py — tambah MIN_NOTIONAL_FUTURES = 50.0
+src/exchange/auth.py — fix GET request tidak include signature di params
+
+### Sesuai Plan
+
+placeEntryOrders place spot + futures LIMIT GTC bersamaan. calculateQuantity validate notional >= MIN_NOTIONAL_FUTURES. pollOrderFill poll 5s interval, return "filled"|"timeout"|"cancelled". handlePartialFill cancel kedua leg, close filled leg dengan MARKET. placeStopLoss dan placeTakeProfit via raw requests ke /fapi/v1/algoOrder dengan algoType=CONDITIONAL, triggerPrice, workingType=MARK_PRICE. cancelAlgoOrder via algoId (bukan orderId). listOpenAlgoOrders via /fapi/v1/openAlgoOrders (flat array, bukan wrapped). exitNormal limit order + timeout fallback market. exitEmergency market order langsung. _placeAlgoOrder shared helper untuk SL dan TP menghilangkan duplikasi.
+
+### Perubahan
+
+auth.py GET bug fix: signature tidak di-include di params — line requests.get() ditambah params | {"signature": signature}. settings.py tambah MIN_NOTIONAL_FUTURES: float = 50.0 agar tidak magic number di calculateQuantity. _placeAlgoOrder internal helper diekstrak dari placeStopLoss + placeTakeProfit untuk eliminasi duplikasi.
+
+### Verification
+
+ruff check src/execution/ passed, mypy src/execution/ passed. Total lines: algo_order.py 84, order_placer.py 50, order_monitor.py 65, exit_handler.py 105.
