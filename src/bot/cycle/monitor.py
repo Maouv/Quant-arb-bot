@@ -27,7 +27,7 @@ def monitorPositions(
             "spotExchange": botState["spotExchange"],
             "futuresExchange": botState["futuresExchange"],
             "symbol": symbol, "spotSide": "sell", "futuresSide": "buy",
-            "quantity": float(str(pos.get("positionAmt", 0))),
+            "quantity": float(pos.get("positionAmt") or 0),
             "algoIds": [], "baseUrl": str(botState["baseUrl"]),
             "apiKey": str(botState["apiKey"]), "apiSecret": str(botState["apiSecret"]),
         }

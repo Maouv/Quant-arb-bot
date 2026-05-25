@@ -65,9 +65,14 @@ def _placeEntry(
     spotMid = (spotBk.get("bid", markPrice) + spotBk.get("ask", markPrice)) / 2
     futMid = (futBk.get("bid", markPrice) + futBk.get("ask", markPrice)) / 2
 
+    # FR > 0: long spot + short futures. FR < 0: short spot + long futures.
+    spotSide = "buy" if fr > 0 else "sell"
+    futSide = "sell" if fr > 0 else "buy"
+    slTpSide = "buy" if futSide == "sell" else "sell"  # exit = opposite of entry
+
     spotOrder, futOrder = placeEntryOrders(
         botState["spotExchange"], botState["futuresExchange"],
-        symbol, "buy", "sell", qty, spotMid, futMid,
+        symbol, spotSide, futSide, qty, spotMid, futMid,
     )
     spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
     futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
@@ -94,11 +99,11 @@ def _placeEntry(
 
     try:
         slId = placeStopLoss(
-            symbol, "sell", str(filledQty),
+            symbol, slTpSide, str(filledQty),
             _roundTick(markPrice * 1.02), baseUrl, apiKey, apiSecret,
         )
         tpId = placeTakeProfit(
-            symbol, "sell", str(filledQty),
+            symbol, slTpSide, str(filledQty),
             _roundTick(markPrice * 0.95), baseUrl, apiKey, apiSecret,
         )
     except Exception as exc:
@@ -109,7 +114,7 @@ def _placeEntry(
         return 0
 
     record = buildTradeRecord(
-        symbol=symbol, side="long", entryTime=datetime.now(UTC).isoformat(), exitTime="",
+        symbol=symbol, side=spotSide, entryTime=datetime.now(UTC).isoformat(), exitTime="",
         entryFr=fr, exitFr=0.0, holdSettlements=0, grossPct=0.0, costRtPct=0.0,
         netPct=0.0, netDollar=0.0, fillTimeSpotMs=0, fillTimeFuturesMs=0,
         actualFillPriceSpot=float(str(spotInfo.get("average", spotMid))),
