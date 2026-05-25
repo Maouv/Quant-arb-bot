@@ -29,7 +29,6 @@ def runOrphanCheck(
     baseUrl = str(botState["baseUrl"])
     apiKey = str(botState["apiKey"])
     apiSecret = str(botState["apiSecret"])
-    suspended: dict[str, int] = botState["suspendedSymbols"]  # type: ignore[assignment]
 
     algoOrders = listOpenAlgoOrders(baseUrl, apiKey, apiSecret)
 
@@ -40,8 +39,8 @@ def runOrphanCheck(
         _cancelAlgoSafe(str(order["symbol"]), int(str(order["algoId"])), baseUrl, apiKey, apiSecret)
     for pos in checkUnprotectedPositions(openPositions, algoOrders):
         logger.warning("Unprotected position: %s", pos.get("symbol"))
-    for pos in openPositions:
-        handleManipulationEvent(str(pos.get("symbol", "")), spot, fut, suspended)
+    # NOTE: handleManipulationEvent removed — requires proper futures-closed-but-spot-open
+    # detection logic before re-enabling (was triggering for ALL open positions)
 
 
 def _cancelOrderSafe(exchange: object, order: dict[str, object]) -> None:

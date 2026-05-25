@@ -57,6 +57,10 @@ def _placeEntry(
     qty = calculateQuantity(
         markPrice, float(str(botState["sizePerPair"])), minNotionals.get(symbol, 50.0)
     )
+
+    # Set 1x leverage + isolated margin before entry (required for delta-neutral)
+    _setFuturesMarginSettings(botState["futuresExchange"], symbol)
+
     spotBk, futBk = bookSpot.get(symbol, {}), bookFutures.get(symbol, {})
     spotMid = (spotBk.get("bid", markPrice) + spotBk.get("ask", markPrice)) / 2
     futMid = (futBk.get("bid", markPrice) + futBk.get("ask", markPrice)) / 2
@@ -65,8 +69,14 @@ def _placeEntry(
         botState["spotExchange"], botState["futuresExchange"],
         symbol, "buy", "sell", qty, spotMid, futMid,
     )
-    spotStatus, spotInfo = pollOrderFill(botState["spotExchange"], str(spotOrder.get("id")), symbol)
-    futStatus, futInfo = pollOrderFill(botState["futuresExchange"], str(futOrder.get("id")), symbol)
+    spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
+    futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
+    spotStatus, spotInfo = pollOrderFill(
+        botState["spotExchange"], str(spotOrder.get("id")), spotSymbol
+    )
+    futStatus, futInfo = pollOrderFill(
+        botState["futuresExchange"], str(futOrder.get("id")), futSymbol
+    )
 
     if spotStatus != "filled" or futStatus != "filled":
         handlePartialFill(
@@ -74,12 +84,30 @@ def _placeEntry(
         )
         return 0
 
-    slId = placeStopLoss(
-        symbol, "sell", str(qty), str(markPrice * 0.98), baseUrl, apiKey, apiSecret
-    )
-    tpId = placeTakeProfit(
-        symbol, "sell", str(qty), str(markPrice * 1.02), baseUrl, apiKey, apiSecret
-    )
+    # Use actual filled qty from exchange (already precision-correct per symbol rules)
+    filledQty = float(str(futInfo.get("filled") or qty))
+    tick = float(str(botState.get("tickSizes", {}).get(symbol, 0.01)))  # type: ignore[union-attr]
+    decimals = len(str(tick).rstrip("0").split(".")[-1])
+
+    def _roundTick(price: float) -> str:
+        return str(round(round(price / tick) * tick, decimals))
+
+    try:
+        slId = placeStopLoss(
+            symbol, "sell", str(filledQty),
+            _roundTick(markPrice * 1.02), baseUrl, apiKey, apiSecret,
+        )
+        tpId = placeTakeProfit(
+            symbol, "sell", str(filledQty),
+            _roundTick(markPrice * 0.95), baseUrl, apiKey, apiSecret,
+        )
+    except Exception as exc:
+        logger.error("SL/TP failed for %s — rolling back entry: %s", symbol, exc)
+        handlePartialFill(
+            botState["spotExchange"], botState["futuresExchange"], spotInfo, futInfo, symbol
+        )
+        return 0
+
     record = buildTradeRecord(
         symbol=symbol, side="long", entryTime=datetime.now(UTC).isoformat(), exitTime="",
         entryFr=fr, exitFr=0.0, holdSettlements=0, grossPct=0.0, costRtPct=0.0,
@@ -92,3 +120,21 @@ def _placeEntry(
     appendTradeRecord(record)
     costCache.update(symbol, 0.0)
     return 1
+
+
+def _setFuturesMarginSettings(futuresExchange: object, symbol: str) -> None:
+    """Set 1x leverage + ISOLATED margin for symbol before entry."""
+    try:
+        futuresExchange.fapiPrivatePostMarginType(  # type: ignore[attr-defined]
+            {"symbol": symbol, "marginType": "ISOLATED"}
+        )
+    except Exception as exc:
+        # -4046 = already isolated, ignore
+        if "-4046" not in str(exc):
+            logger.warning("setMarginType %s: %s", symbol, exc)
+    try:
+        futuresExchange.fapiPrivatePostLeverage(  # type: ignore[attr-defined]
+            {"symbol": symbol, "leverage": 1}
+        )
+    except Exception as exc:
+        logger.warning("setLeverage %s: %s", symbol, exc)

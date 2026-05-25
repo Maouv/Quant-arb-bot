@@ -57,10 +57,11 @@ def exitEmergency(
     for algoId in algoIds:
         _cancelAlgoSafe(symbol, algoId, baseUrl, apiKey, apiSecret)
 
-    ccxtSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
-    spotInfo = spotExchange.create_order(ccxtSymbol, "market", spotSide.lower(), quantity)  # type: ignore[attr-defined]
+    spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
+    futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
+    spotInfo = spotExchange.create_order(spotSymbol, "market", spotSide.lower(), quantity)  # type: ignore[attr-defined]
     futuresInfo = futuresExchange.create_order(  # type: ignore[attr-defined]
-        ccxtSymbol, "market", futuresSide.lower(), quantity, params={"reduceOnly": True}
+        futSymbol, "market", futuresSide.lower(), quantity, params={"reduceOnly": True}
     )
     logger.warning("exitEmergency complete: %s spot=%s futures=%s", symbol, spotSide, futuresSide)
     return {
@@ -82,9 +83,10 @@ def _placeLimitExit(
     spotSide: str, futuresSide: str, quantity: float,
 ) -> tuple[dict[str, object], dict[str, object]]:
     """Fetch mid price dan place limit exit orders."""
-    ccxtSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
-    spotT: dict[str, object] = spotExchange.fetch_ticker(ccxtSymbol)  # type: ignore[attr-defined]
-    futT: dict[str, object] = futuresExchange.fetch_ticker(ccxtSymbol)  # type: ignore[attr-defined]
+    spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
+    futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
+    spotT: dict[str, object] = spotExchange.fetch_ticker(spotSymbol)  # type: ignore[attr-defined]
+    futT: dict[str, object] = futuresExchange.fetch_ticker(futSymbol)  # type: ignore[attr-defined]
     spotMid = (float(spotT["bid"]) + float(spotT["ask"])) / 2  # type: ignore[arg-type]
     futMid = (float(futT["bid"]) + float(futT["ask"])) / 2  # type: ignore[arg-type]
     return placeEntryOrders(
@@ -96,7 +98,9 @@ def _marketFallback(
     exchange: object, symbol: str, side: str, quantity: float, reduceOnly: bool,
 ) -> dict[str, object]:
     """Place market order sebagai fallback saat limit timeout."""
-    ccxtSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
+    # reduceOnly=True means futures; False means spot
+    ccxtSymbol = (symbol.replace("USDT", "/USDT:USDT") if reduceOnly
+                  else symbol.replace("USDT", "/USDT")) if "USDT" in symbol else symbol
     params = {"reduceOnly": True} if reduceOnly else {}
     result: dict[str, object] = exchange.create_order(  # type: ignore[attr-defined]
         ccxtSymbol, "market", side.lower(), quantity, params=params

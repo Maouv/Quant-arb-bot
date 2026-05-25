@@ -31,17 +31,18 @@ def placeEntryOrders(
     Place spot + futures LIMIT order bersamaan (mid price). timeInForce: GTC.
     Return: (spotOrder, futuresOrder) — raw order dicts. Caller handles fill monitoring.
     """
-    ccxtSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
+    spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
+    futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
     logger.info(
         "Placing entry orders: %s spot=%s futures=%s qty=%s",
         symbol, spotSide, futuresSide, quantity,
     )
     spotOrder: dict[str, object] = spotExchange.create_order(  # type: ignore[attr-defined]
-        symbol=ccxtSymbol, type="limit", side=spotSide.lower(),
+        symbol=spotSymbol, type="limit", side=spotSide.lower(),
         amount=quantity, price=spotPrice, params={"timeInForce": "GTC"},
     )
     futuresOrder: dict[str, object] = futuresExchange.create_order(  # type: ignore[attr-defined]
-        symbol=ccxtSymbol, type="limit", side=futuresSide.lower(),
+        symbol=futSymbol, type="limit", side=futuresSide.lower(),
         amount=quantity, price=futuresPrice, params={"timeInForce": "GTC"},
     )
     logger.info(

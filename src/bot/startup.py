@@ -37,6 +37,7 @@ def runStartupSequence() -> dict[str, object]:
     availableBalance = fetchFuturesBalance(futuresExchange)
     sizePerPair = computeSizePerPair(availableBalance)
     minNotionals = _fetchMinNotionals(futuresExchange)
+    tickSizes = _fetchTickSizes(futuresExchange)
     validUniverse = validateUniverse(futuresExchange, _loadUniverse())
 
     openPositions = fetchOpenPositions(futuresExchange)
@@ -62,6 +63,7 @@ def runStartupSequence() -> dict[str, object]:
     return {
         "spotExchange": spotExchange, "futuresExchange": futuresExchange,
         "validUniverse": validUniverse, "minNotionals": minNotionals,
+        "tickSizes": tickSizes,
         "sizePerPair": sizePerPair, "availableBalance": availableBalance,
         "lastBalanceRefresh": datetime.now(UTC), "costCache": CostCache(),
         "openPositions": openPositions, "suspendedSymbols": {},
@@ -111,6 +113,21 @@ def _fetchMinNotionals(futuresExchange: object) -> dict[str, float]:
         for f in sym.get("filters", []):
             if f.get("filterType") == "MIN_NOTIONAL":
                 result[sym["symbol"]] = float(f.get("notional", 0))
+    return result
+
+
+def _fetchTickSizes(futuresExchange: object) -> dict[str, float]:
+    """Fetch exchangeInfo dan extract PRICE_FILTER tickSize per symbol."""
+    try:
+        info = futuresExchange.fapiPublicGetExchangeInfo()  # type: ignore[attr-defined]
+    except ccxt.BaseError as exc:
+        logger.error("fetchTickSizes failed: %s", exc)
+        return {}
+    result: dict[str, float] = {}
+    for sym in info.get("symbols", []):
+        for f in sym.get("filters", []):
+            if f.get("filterType") == "PRICE_FILTER":
+                result[sym["symbol"]] = float(f.get("tickSize", 0.01))
     return result
 
 

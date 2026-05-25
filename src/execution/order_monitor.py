@@ -14,13 +14,12 @@ def pollOrderFill(
 ) -> tuple[str, dict[str, object]]:
     """
     Poll setiap 5s sampai filled/closed atau timeout.
+    symbol: ccxt format sudah dikonversi (CHR/USDT untuk spot, CHR/USDT:USDT untuk futures).
     Return: (status, orderInfo) — status: "filled" | "timeout" | "cancelled".
-    Note: "filled" dan "closed" keduanya = executed.
     """
-    ccxtSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
     elapsed = 0
     while elapsed < timeoutSeconds:
-        orderInfo: dict[str, object] = exchange.fetch_order(orderId, ccxtSymbol)  # type: ignore[attr-defined]
+        orderInfo: dict[str, object] = exchange.fetch_order(orderId, symbol)  # type: ignore[attr-defined]
         status = str(orderInfo.get("status", ""))
         if status in _FILLED_STATUSES:
             logger.info("Order %s filled: %s", orderId, status)
@@ -32,7 +31,7 @@ def pollOrderFill(
         elapsed += _POLL_INTERVAL_SECONDS
 
     logger.warning("Order %s timed out after %ss", orderId, timeoutSeconds)
-    return "timeout", exchange.fetch_order(orderId, ccxtSymbol)  # type: ignore[attr-defined]
+    return "timeout", exchange.fetch_order(orderId, symbol)  # type: ignore[attr-defined]
 
 
 def handlePartialFill(
@@ -43,17 +42,18 @@ def handlePartialFill(
     Salah satu fill, yang lain timeout:
     1. Cancel keduanya 2. Close filled leg dengan MARKET order 3. Log "partial_fill_failed".
     """
-    ccxtSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
-    _cancelSafe(spotExchange, str(spotOrder.get("id", "")), ccxtSymbol)
-    _cancelSafe(futuresExchange, str(futuresOrder.get("id", "")), ccxtSymbol)
+    spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
+    futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
+    _cancelSafe(spotExchange, str(spotOrder.get("id", "")), spotSymbol)
+    _cancelSafe(futuresExchange, str(futuresOrder.get("id", "")), futSymbol)
 
     if str(spotOrder.get("status", "")) in _FILLED_STATUSES:
         qty = float(str(spotOrder.get("filled") or 0))
-        spotExchange.create_order(ccxtSymbol, "market", "sell", qty)  # type: ignore[attr-defined]
+        spotExchange.create_order(spotSymbol, "market", "sell", qty)  # type: ignore[attr-defined]
         logger.error("partial_fill_failed: closed spot leg for %s qty=%s", symbol, qty)
     elif str(futuresOrder.get("status", "")) in _FILLED_STATUSES:
         qty = float(str(futuresOrder.get("filled") or 0))
-        futuresExchange.create_order(ccxtSymbol, "market", "buy", qty, params={"reduceOnly": True})  # type: ignore[attr-defined]
+        futuresExchange.create_order(futSymbol, "market", "buy", qty, params={"reduceOnly": True})  # type: ignore[attr-defined]
         logger.error("partial_fill_failed: closed futures leg for %s qty=%s", symbol, qty)
 
 
