@@ -26,9 +26,12 @@ class CostCache:
             self.data[symbol] = self.data[symbol][-100:]
 
     def getRollingAvg(self, symbol: str) -> float:
-        """Return rolling avg. Fallback: DEFAULT_COST_TIER."""
+        """Return rolling avg. Cold-start: use FEE_RT (minimum theoretical cost)."""
         if symbol not in self.data or not self.data[symbol]:
-            return DEFAULT_COST_TIER
+            # Cold start — use fee-only floor so bot can enter first trades
+            # and build real cost data. DEFAULT_COST_TIER is for steady-state.
+            from src.config.settings import FEE_RT
+            return FEE_RT
         return sum(self.data[symbol]) / len(self.data[symbol])
 
     def save(self) -> None:

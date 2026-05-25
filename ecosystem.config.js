@@ -10,15 +10,15 @@ module.exports = {
       name: "trading-bot",
       script: ".venv/bin/python3",
       args: "-m src.bot.main",
-      cwd: "/path/to/Quant-arb-bot",       // UPDATE: absolute path to repo
+      cwd: "/root/quant-arb-bot",
       interpreter: "none",
       autorestart: true,
       watch: false,
       max_restarts: 5,
-      restart_delay: 10000,                 // 10s delay between restarts
-      min_uptime: 30000,                    // must run 30s to count as "started"
+      restart_delay: 10000,
+      min_uptime: 30000,
       env: {
-        PYTHONPATH: ".",
+        PYTHONPATH: "/root/quant-arb-bot",
         PYTHONUNBUFFERED: "1",
       },
       log_file: "logs/pm2-trading-bot.log",
@@ -29,8 +29,8 @@ module.exports = {
     {
       name: "discord-bot",
       script: ".venv/bin/python3",
-      args: "-m src.discord_ui.bot",
-      cwd: "/path/to/Quant-arb-bot",       // UPDATE: absolute path to repo
+      args: "-m src.discord_ui",
+      cwd: "/root/quant-arb-bot",
       interpreter: "none",
       autorestart: true,
       watch: false,
@@ -38,7 +38,7 @@ module.exports = {
       restart_delay: 10000,
       min_uptime: 30000,
       env: {
-        PYTHONPATH: ".",
+        PYTHONPATH: "/root/quant-arb-bot",
         PYTHONUNBUFFERED: "1",
       },
       log_file: "logs/pm2-discord-bot.log",

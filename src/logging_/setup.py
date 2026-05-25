@@ -1,6 +1,7 @@
 """Logging configuration."""
 
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -27,7 +28,7 @@ def configureLogging(logDir: str = "logs") -> logging.Logger:
     fileHandler.setLevel(logging.DEBUG)
     fileHandler.setFormatter(formatter)
 
-    consoleHandler = logging.StreamHandler()
+    consoleHandler = logging.StreamHandler(sys.stdout)
     consoleHandler.setLevel(logging.INFO)
     consoleHandler.setFormatter(formatter)
 

@@ -53,10 +53,33 @@ def _runCycleInner(botState: dict[str, object]) -> None:
     openPositions: list[dict[str, Any]] = fetchOpenPositions(fut)
     botState["openPositions"] = openPositions
 
+    logger.info(
+        "Fetch: premiumIndex=%d bookFut=%d bookSpot=%d openPos=%d",
+        len(premiumIndex), len(bookFutures), len(bookSpot), len(openPositions),
+    )
+
+    # Log top FR rates from universe only (what actually matters for entry)
+    universeIdx = [p for p in premiumIndex if p["symbol"] in universe]
+    topFr = sorted(universeIdx, key=lambda x: abs(x["lastFundingRate"]), reverse=True)[:5]
+    frSummary = " | ".join(
+        f"{p['symbol']}={p['lastFundingRate']*100:.4f}%" for p in topFr
+    )
+    logger.info("Top FR (universe): %s", frSummary)
+
     monitorPositions(openPositions, premiumIndex, botState)
 
     slots = MAX_PAIRS - len(openPositions)
-    if slots > 0 and not isBlackoutWindow() and not isBroadMarketStress({}, costCache):
+    blackout = isBlackoutWindow()
+    stress = isBroadMarketStress({}, costCache)
+
+    if slots <= 0:
+        logger.info("Skip entry: no slots (max=%d, open=%d)", MAX_PAIRS, len(openPositions))
+    elif blackout:
+        logger.info("Skip entry: blackout window active")
+    elif stress:
+        logger.info("Skip entry: broad market stress detected")
+    else:
+        logger.info("Entry scan: %d slots available, suspended=%d", slots, len(suspended))
         executeEntries(botState, premiumIndex, bookFutures, bookSpot, slots, costCache, universe)
 
     runOrphanCheck(botState, openPositions)

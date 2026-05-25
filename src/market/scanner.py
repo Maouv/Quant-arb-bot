@@ -71,20 +71,31 @@ def filterCandidates(premiumIndex: list[PremiumIndexEntry], bookTickerSpot: dict
     Sort: net_expected desc, tie-break alphabetical.
     """
     candidates = []
+    passedUniverse = 0
+    passedThreshold = 0
+    passedBook = 0
+    passedBasis = 0
     for item in premiumIndex:
         symbol = item["symbol"]
         if symbol not in validUniverse or symbol in excludedSymbols:
             continue
-        fr = abs(item["lastFundingRate"])
+        passedUniverse += 1
+        fr = abs(item["lastFundingRate"]) * 100  # API returns decimal, threshold is %
         if fr < ENTRY_THRESHOLD:
             continue
+        passedThreshold += 1
         if symbol not in bookTickerSpot or symbol not in bookTickerFutures:
             continue
+        passedBook += 1
 
         basis = calculateBasis(item["markPrice"], item["indexPrice"])
         if basis > 0.05:
-            logger.debug(f"{symbol} skipped: basis {basis:.4f}% > 0.05%")
+            logger.info(
+                "%s rejected: basis=%.4f%% > 0.05%% (FR=%.4f%%)",
+                symbol, basis, item["lastFundingRate"] * 100,
+            )
             continue
+        passedBasis += 1
 
         spreadSpot = calculateSpread(bookTickerSpot[symbol]["bid"],
                                       bookTickerSpot[symbol]["ask"])
@@ -94,10 +105,25 @@ def filterCandidates(premiumIndex: list[PremiumIndexEntry], bookTickerSpot: dict
         netExpected = calculateNetExpected(item["lastFundingRate"], costEstimate)
 
         if netExpected <= MIN_PROFIT_THRESHOLD:
+            logger.info(
+                "%s rejected: net=%.4f%% (FR=%.4f%% - cost=%.4f%%)",
+                symbol, netExpected, abs(item["lastFundingRate"]) * 100, costEstimate,
+            )
             continue
 
         candidates.append({**item, "spreadSpot": spreadSpot, "spreadFutures": spreadFutures,
                           "basis": basis, "netExpected": netExpected})
 
     candidates.sort(key=lambda x: (-x["netExpected"], x["symbol"]))
-    return candidates[:openSlots]
+    result = candidates[:openSlots]
+    logger.info(
+        "Filter: univ=%d frOk=%d book=%d basis=%d profit=%d → pick=%d",
+        passedUniverse, passedThreshold, passedBook, passedBasis, len(candidates), len(result),
+    )
+    if result:
+        top = result[0]
+        logger.info(
+            "Best candidate: %s FR=%.4f%% net=%.4f%%",
+            top["symbol"], top["lastFundingRate"] * 100, top["netExpected"],
+        )
+    return result

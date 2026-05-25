@@ -3,6 +3,7 @@
 import logging
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 from src.ai.client import AiClient
@@ -56,14 +57,34 @@ async def startBot(token: str) -> None:
             return
         logger.error("Command error: %s", error)
 
+    @bot.tree.error
+    async def on_app_command_error(
+        interaction: discord.Interaction, error: app_commands.AppCommandError,
+    ) -> None:
+        """Handle stale slash commands that no longer exist in the tree."""
+        if isinstance(error, app_commands.CommandNotFound):
+            logger.warning("Stale command invoked: %s — run /sync or re-sync guild commands", error)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "⚠️ Command tidak dikenali. Kemungkinan stale — coba lagi dalam beberapa menit.",
+                    ephemeral=True,
+                )
+            return
+        logger.error("App command error: %s", error, exc_info=True)
+        if not interaction.response.is_done():
+            await interaction.response.send_message("❌ Internal error.", ephemeral=True)
+
     @bot.event
     async def on_ready() -> None:
-        """Sync slash commands on connect."""
+        """Sync slash commands on connect. Clear stale global commands if guild-scoped."""
         if guildId is not None:
             guild = discord.Object(id=guildId)
             bot.tree.copy_global_to(guild=guild)
             await bot.tree.sync(guild=guild)
-            logger.info("Slash commands synced to guild %d", guildId)
+            # Clear stale global commands (removes 'vc', 'whoami', etc.)
+            bot.tree.clear_commands(guild=None)
+            await bot.tree.sync()
+            logger.info("Slash commands synced to guild %d, global commands cleared", guildId)
         else:
             await bot.tree.sync()
             logger.info("Slash commands synced globally")

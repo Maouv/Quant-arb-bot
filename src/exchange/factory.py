@@ -37,6 +37,13 @@ def createSpotExchange(testnet: bool = True) -> ccxt.binance:
         exchange.urls["api"]["public"] = f"{BASE_DEMO_SPOT}/api/v3"
         exchange.urls["api"]["private"] = f"{BASE_DEMO_SPOT}/api/v3"
         exchange.urls["api"]["v1"] = f"{BASE_DEMO_SPOT}/api/v1"
+        exchange.urls["api"]["sapi"] = f"{BASE_DEMO_SPOT}/sapi/v1"
+        exchange.urls["api"]["sapiV2"] = f"{BASE_DEMO_SPOT}/sapi/v2"
+        exchange.urls["api"]["sapiV3"] = f"{BASE_DEMO_SPOT}/sapi/v3"
+        exchange.urls["api"]["sapiV4"] = f"{BASE_DEMO_SPOT}/sapi/v4"
+        # demo-api.binance.com does not support sapi/v1/capital/config/getall
+        # which ccxt calls internally in fetch_currencies → skip it
+        exchange.fetch_currencies = lambda params={}: {}  # type: ignore[method-assign]
 
     return exchange
 
