@@ -138,8 +138,8 @@ def _setFuturesMarginSettings(futuresExchange: object, symbol: str) -> None:
         )
     except Exception as exc:
         # -4046 = already isolated, ignore. -4067 = open orders exist, abort entry.
-        if "-4067" in str(exc):
-            raise RuntimeError(f"open orders on {symbol}, aborting entry") from exc
+        if "-4067" in str(exc) or "-1007" in str(exc):
+            raise RuntimeError(f"setMarginType unknown/blocked for {symbol}") from exc
         if "-4046" not in str(exc):
             logger.warning("setMarginType %s: %s", symbol, exc)
     try:
