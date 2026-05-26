@@ -38,7 +38,7 @@ def runOrphanCheck(
     for order in checkOrphanAlgoOrders(algoOrders, openPositions):
         _cancelAlgoSafe(str(order["symbol"]), int(str(order["algoId"])), baseUrl, apiKey, apiSecret)
     for pos in checkUnprotectedPositions(openPositions, algoOrders):
-        logger.warning("Unprotected position: %s", pos.get("symbol"))
+        logger.critical("Unprotected position: %s", pos.get("symbol"))
     # NOTE: handleManipulationEvent removed — requires proper futures-closed-but-spot-open
     # detection logic before re-enabling (was triggering for ALL open positions)
 

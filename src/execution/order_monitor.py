@@ -40,12 +40,23 @@ def handlePartialFill(
 ) -> None:
     """
     Salah satu fill, yang lain timeout:
-    1. Cancel keduanya 2. Close filled leg dengan MARKET order 3. Log "partial_fill_failed".
+    1. Cancel keduanya 2. Re-fetch status (cancel -2011 = already filled)
+    3. Close filled leg dengan MARKET order 4. Log "partial_fill_failed".
     """
     spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
     futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
     _cancelSafe(spotExchange, str(spotOrder.get("id", "")), spotSymbol)
     _cancelSafe(futuresExchange, str(futuresOrder.get("id", "")), futSymbol)
+
+    # Re-fetch: cancel returning -2011 means order was already filled
+    try:
+        spotOrder = spotExchange.fetch_order(str(spotOrder.get("id", "")), spotSymbol)  # type: ignore[attr-defined]
+    except Exception as exc:
+        logger.warning("Re-fetch spot order failed, using stale status: %s", exc)
+    try:
+        futuresOrder = futuresExchange.fetch_order(str(futuresOrder.get("id", "")), futSymbol)  # type: ignore[attr-defined]
+    except Exception as exc:
+        logger.warning("Re-fetch futures order failed, using stale status: %s", exc)
 
     if str(spotOrder.get("status", "")) in _FILLED_STATUSES:
         qty = float(str(spotOrder.get("filled") or 0))

@@ -84,11 +84,19 @@ def handleManipulationEvent(
     2. Log manipulation_event.
     3. Suspend coin 3 cycles.
     """
-    logger.critical(f"MANIPULATION EVENT: {symbol}")
-
+    logger.critical("MANIPULATION EVENT: %s", symbol)
+    baseAsset = symbol.replace("USDT", "")
+    spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
     try:
-        spotExchange.create_market_order(symbol, "sell", 0)  # qty must be fetched
+        balance: dict[str, object] = spotExchange.fetch_balance()  # type: ignore[attr-defined]
+        free: dict[str, object] = balance.get("free", {})  # type: ignore[assignment]
+        qty = float(str(free.get(baseAsset, 0)))
+        if qty <= 0:
+            logger.error("Manipulation event %s: zero spot balance, cannot close", symbol)
+        else:
+            spotExchange.create_order(  # type: ignore[attr-defined]
+                spotSymbol, "market", "sell", qty
+            )
     except ccxt.BaseError as e:
-        logger.error(f"Failed to close spot during manipulation event: {e}")
-
+        logger.error("Failed to close spot during manipulation event: %s", e)
     suspendedSymbols[symbol] = 3
