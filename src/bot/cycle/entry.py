@@ -11,9 +11,9 @@ from src.execution.order_placer import calculateQuantity, placeEntryOrders
 from src.logging_.trade_log import appendTradeRecord, buildTradeRecord
 from src.market.cost_cache import CostCache
 from src.market.scanner import filterCandidates
+from src.position.balance import fetchSpotBalance
 
 logger = logging.getLogger(__name__)
-
 
 def executeEntries(
     botState: dict[str, object],
@@ -38,7 +38,6 @@ def executeEntries(
             entered += _placeEntry(botState, candidate, bookFutures, bookSpot, costCache)
         except Exception as exc:
             logger.error("Entry failed for %s: %s", candidate.get("symbol"), exc)
-
 
 def _placeEntry(
     botState: dict[str, object], candidate: dict[str, Any],
@@ -69,6 +68,11 @@ def _placeEntry(
     spotSide = "buy" if fr > 0 else "sell"
     futSide = "sell" if fr > 0 else "buy"
     slTpSide = "buy" if futSide == "sell" else "sell"  # exit = opposite of entry
+    if spotSide == "sell":
+        baseAsset = symbol.replace("USDT", "")
+        if fetchSpotBalance(botState["spotExchange"], baseAsset) < qty:
+            logger.warning("Skip %s: spot asset balance insufficient for sell-short leg", symbol)
+            return 0
 
     spotOrder, futOrder = placeEntryOrders(
         botState["spotExchange"], botState["futuresExchange"],
@@ -126,7 +130,6 @@ def _placeEntry(
     costCache.update(symbol, 0.0)
     return 1
 
-
 def _setFuturesMarginSettings(futuresExchange: object, symbol: str) -> None:
     """Set 1x leverage + ISOLATED margin for symbol before entry."""
     try:
@@ -134,7 +137,9 @@ def _setFuturesMarginSettings(futuresExchange: object, symbol: str) -> None:
             {"symbol": symbol, "marginType": "ISOLATED"}
         )
     except Exception as exc:
-        # -4046 = already isolated, ignore
+        # -4046 = already isolated, ignore. -4067 = open orders exist, abort entry.
+        if "-4067" in str(exc):
+            raise RuntimeError(f"open orders on {symbol}, aborting entry") from exc
         if "-4046" not in str(exc):
             logger.warning("setMarginType %s: %s", symbol, exc)
     try:

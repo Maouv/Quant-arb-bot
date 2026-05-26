@@ -2,6 +2,8 @@
 
 import logging
 
+import ccxt
+
 from src.config.settings import MIN_NOTIONAL_FUTURES
 
 logger = logging.getLogger(__name__)
@@ -41,10 +43,22 @@ def placeEntryOrders(
         symbol=spotSymbol, type="limit", side=spotSide.lower(),
         amount=quantity, price=spotPrice, params={"timeInForce": "GTC"},
     )
-    futuresOrder: dict[str, object] = futuresExchange.create_order(  # type: ignore[attr-defined]
-        symbol=futSymbol, type="limit", side=futuresSide.lower(),
-        amount=quantity, price=futuresPrice, params={"timeInForce": "GTC"},
-    )
+    try:
+        futuresOrder: dict[str, object] = futuresExchange.create_order(  # type: ignore[attr-defined]
+            symbol=futSymbol, type="limit", side=futuresSide.lower(),
+            amount=quantity, price=futuresPrice, params={"timeInForce": "GTC"},
+        )
+    except ccxt.BaseError as exc:
+        try:
+            spotExchange.cancel_order(spotOrder.get("id"), spotSymbol)  # type: ignore[attr-defined]
+            logger.warning(
+                "Cancelled spot leg %s after futures failure: %s", spotOrder.get("id"), exc
+            )
+        except Exception as cancelExc:
+            logger.critical(
+                "UNHEDGED spot leg %s cancel failed: %s", spotOrder.get("id"), cancelExc
+            )
+        raise
     logger.info(
         "Entry orders placed: spotId=%s futuresId=%s", spotOrder.get("id"), futuresOrder.get("id")
     )

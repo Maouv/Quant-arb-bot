@@ -10,6 +10,17 @@ from src.config.settings import BALANCE_REFRESH_INTERVAL, BUFFER_RATIO, MAX_PAIR
 logger = logging.getLogger(__name__)
 
 
+def fetchSpotBalance(spotExchange: ccxt.binance, asset: str) -> float:
+    """Fetch free balance of `asset` on spot exchange."""
+    try:
+        balance: dict[str, object] = spotExchange.fetch_balance()  # type: ignore[attr-defined]
+        free: dict[str, object] = balance.get("free", {})  # type: ignore[assignment]
+        return float(str(free.get(asset, 0.0)))
+    except ccxt.BaseError as e:
+        logger.error("Failed to fetch spot balance for %s: %s", asset, e)
+        return 0.0
+
+
 def fetchFuturesBalance(futuresExchange: ccxt.binanceusdm) -> float:
     """GET /fapi/v2/balance → find USDT → return availableBalance."""
     try:
