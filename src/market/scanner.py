@@ -80,8 +80,8 @@ def filterCandidates(premiumIndex: list[PremiumIndexEntry], bookTickerSpot: dict
         if symbol not in validUniverse or symbol in excludedSymbols:
             continue
         passedUniverse += 1
-        fr = abs(item["lastFundingRate"]) * 100  # API returns decimal, threshold is %
-        if fr < ENTRY_THRESHOLD:
+        fr = item["lastFundingRate"] * 100  # API returns decimal, threshold is %
+        if fr < ENTRY_THRESHOLD:  # only FR > 0: long spot + short futures (backtest assumption)
             continue
         passedThreshold += 1
         if symbol not in bookTickerSpot or symbol not in bookTickerFutures:

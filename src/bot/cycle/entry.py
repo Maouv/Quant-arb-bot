@@ -64,15 +64,8 @@ def _placeEntry(
     spotMid = (spotBk.get("bid", markPrice) + spotBk.get("ask", markPrice)) / 2
     futMid = (futBk.get("bid", markPrice) + futBk.get("ask", markPrice)) / 2
 
-    # FR > 0: long spot + short futures. FR < 0: short spot + long futures.
-    spotSide = "buy" if fr > 0 else "sell"
-    futSide = "sell" if fr > 0 else "buy"
-    slTpSide = "buy" if futSide == "sell" else "sell"  # exit = opposite of entry
-    if spotSide == "sell":
-        baseAsset = symbol.replace("USDT", "")
-        if fetchSpotBalance(botState["spotExchange"], baseAsset) < qty:
-            logger.warning("Skip %s: spot asset balance insufficient for sell-short leg", symbol)
-            return 0
+    # FR > 0 only (backtest assumption): long spot + short futures
+    spotSide, futSide, slTpSide = "buy", "sell", "buy"
 
     spotOrder, futOrder = placeEntryOrders(
         botState["spotExchange"], botState["futuresExchange"],
