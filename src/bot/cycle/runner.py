@@ -67,6 +67,7 @@ def _runCycleInner(botState: dict[str, object]) -> None:
     logger.info("Top FR (universe): %s", frSummary)
 
     monitorPositions(openPositions, premiumIndex, botState)
+    runOrphanCheck(botState, openPositions)  # Before entry: clean orphans first
 
     slots = MAX_PAIRS - len(openPositions)
     blackout = isBlackoutWindow()
@@ -81,8 +82,6 @@ def _runCycleInner(botState: dict[str, object]) -> None:
     else:
         logger.info("Entry scan: %d slots available, suspended=%d", slots, len(suspended))
         executeEntries(botState, premiumIndex, bookFutures, bookSpot, slots, costCache, universe)
-
-    runOrphanCheck(botState, openPositions)
 
     if shouldRefreshBalance(botState["lastBalanceRefresh"]):  # type: ignore[arg-type]
         bal = fetchFuturesBalance(fut)

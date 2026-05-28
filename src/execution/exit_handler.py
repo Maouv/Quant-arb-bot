@@ -4,70 +4,87 @@ import logging
 
 from src.execution.algo_order import cancelAlgoOrder
 from src.execution.order_monitor import pollOrderFill
-from src.execution.order_placer import placeEntryOrders
 
 logger = logging.getLogger(__name__)
 
 
 def exitNormal(
     spotExchange: object, futuresExchange: object, symbol: str,
-    spotSide: str, futuresSide: str, quantity: float, algoIds: list[int],
-    baseUrl: str, apiKey: str, apiSecret: str,
+    spotSide: str, futuresSide: str, spotQuantity: float, futuresQuantity: float,
+    algoIds: list[int], baseUrl: str, apiKey: str, apiSecret: str,
 ) -> dict[str, object]:
     """
-    1. Cancel existing SL/TP (via algoIds)
-    2. Place limit exit orders (spot + futures)
-    3. Poll fill, timeout 60s — kalau timeout → fallback market order
-    4. Return trade result dict. futures exit: reduceOnly=True.
+    1. Cancel SL/TP  2. Limit exit both legs (spot skipped if qty=0)
+    3. Poll fill; timeout → market fallback  4. Return trade result dict.
     """
     for algoId in algoIds:
         _cancelAlgoSafe(symbol, algoId, baseUrl, apiKey, apiSecret)
-
-    spotOrder, futuresOrder = _placeLimitExit(
-        spotExchange, futuresExchange, symbol, spotSide, futuresSide, quantity
-    )
-    spotStatus, spotInfo = pollOrderFill(spotExchange, str(spotOrder.get("id")), symbol)
-    futuresStatus, futuresInfo = pollOrderFill(futuresExchange, str(futuresOrder.get("id")), symbol)
-
-    if spotStatus == "timeout":
-        spotInfo = _marketFallback(spotExchange, symbol, spotSide, quantity, reduceOnly=False)
-    if futuresStatus == "timeout":
-        futuresInfo = _marketFallback(
-            futuresExchange, symbol, futuresSide, quantity, reduceOnly=True
-        )
-
+    spotInfo = _closeSpotNormal(spotExchange, symbol, spotSide, spotQuantity)
+    futInfo = _closeFuturesNormal(futuresExchange, symbol, futuresSide, futuresQuantity)
     logger.info(
-        "exitNormal complete: %s spotStatus=%s futuresStatus=%s",
-        symbol, spotStatus, futuresStatus,
+        "exitNormal complete: %s spotQty=%s futQty=%s", symbol, spotQuantity, futuresQuantity
     )
     return {
-        "symbol": symbol, "spotOrder": spotInfo, "futuresOrder": futuresInfo, "exitType": "normal"
+        "symbol": symbol, "spotOrder": spotInfo, "futuresOrder": futInfo, "exitType": "normal"
     }
 
 
 def exitEmergency(
     spotExchange: object, futuresExchange: object, symbol: str,
-    spotSide: str, futuresSide: str, quantity: float, algoIds: list[int],
-    baseUrl: str, apiKey: str, apiSecret: str,
+    spotSide: str, futuresSide: str, spotQuantity: float, futuresQuantity: float,
+    algoIds: list[int], baseUrl: str, apiKey: str, apiSecret: str,
 ) -> dict[str, object]:
-    """
-    FR flip → market order langsung, no waiting.
-    1. Cancel SL/TP  2. Market order both legs  3. Return trade result dict.
-    """
+    """FR flip → market exit immediately. Spot skipped if qty=0 (dust)."""
     for algoId in algoIds:
         _cancelAlgoSafe(symbol, algoId, baseUrl, apiKey, apiSecret)
-
     spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
     futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
-    spotInfo = spotExchange.create_order(spotSymbol, "market", spotSide.lower(), quantity)  # type: ignore[attr-defined]
-    futuresInfo = futuresExchange.create_order(  # type: ignore[attr-defined]
-        futSymbol, "market", futuresSide.lower(), quantity, params={"reduceOnly": True}
+    spotInfo: dict[str, object] = {}
+    if spotQuantity > 0:
+        spotInfo = spotExchange.create_order(  # type: ignore[attr-defined]
+            spotSymbol, "market", spotSide.lower(), spotQuantity,
+        )
+    futInfo: dict[str, object] = futuresExchange.create_order(  # type: ignore[attr-defined]
+        futSymbol, "market", futuresSide.lower(), futuresQuantity, params={"reduceOnly": True},
     )
-    logger.warning("exitEmergency complete: %s spot=%s futures=%s", symbol, spotSide, futuresSide)
+    logger.warning(
+        "exitEmergency complete: %s spotQty=%s futQty=%s", symbol, spotQuantity, futuresQuantity
+    )
     return {
-        "symbol": symbol, "spotOrder": spotInfo,
-        "futuresOrder": futuresInfo, "exitType": "emergency",
+        "symbol": symbol, "spotOrder": spotInfo, "futuresOrder": futInfo, "exitType": "emergency"
     }
+
+
+def _closeSpotNormal(
+    exchange: object, symbol: str, side: str, quantity: float
+) -> dict[str, object]:
+    """Limit sell spot. Returns {} if qty=0 (dust skip)."""
+    if quantity <= 0:
+        logger.warning("exitNormal %s: spotQty=0, skipping spot leg (dust)", symbol)
+        return {}
+    spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
+    ticker: dict[str, object] = exchange.fetch_ticker(spotSymbol)  # type: ignore[attr-defined]
+    mid = (float(str(ticker.get("bid", 0))) + float(str(ticker.get("ask", 0)))) / 2
+    order: dict[str, object] = exchange.create_order(  # type: ignore[attr-defined]
+        spotSymbol, "limit", side.lower(), quantity, mid, params={"timeInForce": "GTC"},
+    )
+    status, info = pollOrderFill(exchange, str(order.get("id")), symbol)
+    return _marketFallback(exchange, symbol, side, quantity, False) if status == "timeout" else info
+
+
+def _closeFuturesNormal(
+    exchange: object, symbol: str, side: str, quantity: float
+) -> dict[str, object]:
+    """Limit close futures (reduceOnly). Market fallback on timeout."""
+    futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
+    ticker: dict[str, object] = exchange.fetch_ticker(futSymbol)  # type: ignore[attr-defined]
+    mid = (float(str(ticker.get("bid", 0))) + float(str(ticker.get("ask", 0)))) / 2
+    order: dict[str, object] = exchange.create_order(  # type: ignore[attr-defined]
+        futSymbol, "limit", side.lower(), quantity, mid,
+        params={"timeInForce": "GTC", "reduceOnly": True},
+    )
+    status, info = pollOrderFill(exchange, str(order.get("id")), symbol)
+    return _marketFallback(exchange, symbol, side, quantity, True) if status == "timeout" else info
 
 
 def _cancelAlgoSafe(symbol: str, algoId: int, baseUrl: str, apiKey: str, apiSecret: str) -> None:
@@ -78,32 +95,15 @@ def _cancelAlgoSafe(symbol: str, algoId: int, baseUrl: str, apiKey: str, apiSecr
         logger.warning("Cancel algoId=%s skipped: %s", algoId, exc)
 
 
-def _placeLimitExit(
-    spotExchange: object, futuresExchange: object, symbol: str,
-    spotSide: str, futuresSide: str, quantity: float,
-) -> tuple[dict[str, object], dict[str, object]]:
-    """Fetch mid price dan place limit exit orders."""
-    spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
-    futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
-    spotT: dict[str, object] = spotExchange.fetch_ticker(spotSymbol)  # type: ignore[attr-defined]
-    futT: dict[str, object] = futuresExchange.fetch_ticker(futSymbol)  # type: ignore[attr-defined]
-    spotMid = (float(spotT["bid"]) + float(spotT["ask"])) / 2  # type: ignore[arg-type]
-    futMid = (float(futT["bid"]) + float(futT["ask"])) / 2  # type: ignore[arg-type]
-    return placeEntryOrders(
-        spotExchange, futuresExchange, symbol, spotSide, futuresSide, quantity, spotMid, futMid
-    )
-
-
 def _marketFallback(
     exchange: object, symbol: str, side: str, quantity: float, reduceOnly: bool,
 ) -> dict[str, object]:
-    """Place market order sebagai fallback saat limit timeout."""
-    # reduceOnly=True means futures; False means spot
+    """Market order fallback on limit timeout."""
     ccxtSymbol = (symbol.replace("USDT", "/USDT:USDT") if reduceOnly
                   else symbol.replace("USDT", "/USDT")) if "USDT" in symbol else symbol
     params = {"reduceOnly": True} if reduceOnly else {}
     result: dict[str, object] = exchange.create_order(  # type: ignore[attr-defined]
-        ccxtSymbol, "market", side.lower(), quantity, params=params
+        ccxtSymbol, "market", side.lower(), quantity, params=params,
     )
-    logger.warning("Market fallback executed: %s side=%s reduceOnly=%s", symbol, side, reduceOnly)
+    logger.warning("Market fallback: %s side=%s reduceOnly=%s", symbol, side, reduceOnly)
     return result

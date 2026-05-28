@@ -35,6 +35,11 @@ def placeEntryOrders(
     """
     spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
     futSymbol = symbol.replace("USDT", "/USDT:USDT") if "USDT" in symbol else symbol
+    # Round down to spot step size — eliminates lot-size dust (BNB handles fee-based dust)
+    try:
+        quantity = float(spotExchange.amount_to_precision(spotSymbol, quantity))  # type: ignore[attr-defined]
+    except Exception as exc:
+        logger.warning("amount_to_precision %s: %s — using raw qty", spotSymbol, exc)
     logger.info(
         "Placing entry orders: %s spot=%s futures=%s qty=%s",
         symbol, spotSide, futuresSide, quantity,

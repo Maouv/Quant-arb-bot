@@ -88,13 +88,13 @@ def handleManipulationEvent(
     baseAsset = symbol.replace("USDT", "")
     spotSymbol = symbol.replace("USDT", "/USDT") if "USDT" in symbol else symbol
     try:
-        balance: dict[str, object] = spotExchange.fetch_balance()  # type: ignore[attr-defined]
+        balance: dict[str, object] = spotExchange.fetch_balance()
         free: dict[str, object] = balance.get("free", {})  # type: ignore[assignment]
         qty = float(str(free.get(baseAsset, 0)))
         if qty <= 0:
             logger.error("Manipulation event %s: zero spot balance, cannot close", symbol)
         else:
-            spotExchange.create_order(  # type: ignore[attr-defined]
+            spotExchange.create_order(
                 spotSymbol, "market", "sell", qty
             )
     except ccxt.BaseError as e:

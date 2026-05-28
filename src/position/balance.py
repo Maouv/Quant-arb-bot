@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def fetchSpotBalance(spotExchange: ccxt.binance, asset: str) -> float:
     """Fetch free balance of `asset` on spot exchange."""
     try:
-        balance: dict[str, object] = spotExchange.fetch_balance()  # type: ignore[attr-defined]
+        balance: dict[str, object] = spotExchange.fetch_balance()
         free: dict[str, object] = balance.get("free", {})  # type: ignore[assignment]
         return float(str(free.get(asset, 0.0)))
     except ccxt.BaseError as e:

@@ -4,7 +4,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from src.config.settings import EXCLUDED_SYMBOLS
+from src.config.settings import EXCLUDED_SYMBOLS, MIN_SPOT_NOTIONAL
 from src.execution.algo_order import placeStopLoss, placeTakeProfit
 from src.execution.order_monitor import handlePartialFill, pollOrderFill
 from src.execution.order_placer import calculateQuantity, placeEntryOrders
@@ -57,15 +57,22 @@ def _placeEntry(
         markPrice, float(str(botState["sizePerPair"])), minNotionals.get(symbol, 50.0)
     )
 
-    # Set 1x leverage + isolated margin before entry (required for delta-neutral)
-    _setFuturesMarginSettings(botState["futuresExchange"], symbol)
+    _setFuturesMarginSettings(botState["futuresExchange"], symbol)  # 1x leverage + ISOLATED
 
     spotBk, futBk = bookSpot.get(symbol, {}), bookFutures.get(symbol, {})
     spotMid = (spotBk.get("bid", markPrice) + spotBk.get("ask", markPrice)) / 2
     futMid = (futBk.get("bid", markPrice) + futBk.get("ask", markPrice)) / 2
 
-    # FR > 0 only (backtest assumption): long spot + short futures
+    # FR>0: long spot + short futures. Guard: skip if already holding this asset.
     spotSide, futSide, slTpSide = "buy", "sell", "buy"
+    baseAsset = symbol.replace("USDT", "")
+    existingBal = fetchSpotBalance(botState["spotExchange"], baseAsset)
+    if existingBal * markPrice > MIN_SPOT_NOTIONAL:
+        logger.warning(
+            "Skip entry %s: existing spot balance %.4f (%.2f USD)",
+            symbol, existingBal, existingBal * markPrice,
+        )
+        return 0
 
     spotOrder, futOrder = placeEntryOrders(
         botState["spotExchange"], botState["futuresExchange"],
@@ -86,9 +93,9 @@ def _placeEntry(
         )
         return 0
 
-    # Use actual filled qty from exchange (already precision-correct per symbol rules)
     filledQty = float(str(futInfo.get("filled") or qty))
-    tick = float(str(botState.get("tickSizes", {}).get(symbol, 0.01)))  # type: ignore[union-attr]
+    tickSizes: dict[str, float] = botState.get("tickSizes", {})  # type: ignore[assignment]
+    tick = float(str(tickSizes.get(symbol, 0.01)))
     decimals = len(str(tick).rstrip("0").split(".")[-1])
 
     def _roundTick(price: float) -> str:
