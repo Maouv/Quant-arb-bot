@@ -17,7 +17,7 @@ def monitorPositions(
     botState: dict[str, object],
 ) -> None:
     """Check each open position for exit signals. FR flip → emergency. FR < threshold → normal."""
-    frMap = {p["symbol"]: float(p["lastFundingRate"]) * 100 for p in premiumIndex}
+    frMap = {p["symbol"]: float(p.get("lastFundingRate") or 0) * 100 for p in premiumIndex}
     for pos in openPositions:
         symbol = str(pos.get("symbol", ""))
         currentFr = frMap.get(symbol, 0.0)

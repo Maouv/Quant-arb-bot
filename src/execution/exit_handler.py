@@ -69,7 +69,10 @@ def _closeSpotNormal(
         spotSymbol, "limit", side.lower(), quantity, mid, params={"timeInForce": "GTC"},
     )
     status, info = pollOrderFill(exchange, str(order.get("id")), symbol)
-    return _marketFallback(exchange, symbol, side, quantity, False) if status == "timeout" else info
+    if status == "timeout":
+        _cancelSafe(exchange, str(order.get("id")), spotSymbol)
+        return _marketFallback(exchange, symbol, side, quantity, False)
+    return info
 
 
 def _closeFuturesNormal(
@@ -84,7 +87,18 @@ def _closeFuturesNormal(
         params={"timeInForce": "GTC", "reduceOnly": True},
     )
     status, info = pollOrderFill(exchange, str(order.get("id")), symbol)
-    return _marketFallback(exchange, symbol, side, quantity, True) if status == "timeout" else info
+    if status == "timeout":
+        _cancelSafe(exchange, str(order.get("id")), futSymbol)
+        return _marketFallback(exchange, symbol, side, quantity, True)
+    return info
+
+
+def _cancelSafe(exchange: object, orderId: str, ccxtSymbol: str) -> None:
+    """Cancel a limit order before market fallback. Ignore -2011 (already filled/cancelled)."""
+    try:
+        exchange.cancel_order(orderId, ccxtSymbol)  # type: ignore[attr-defined]
+    except Exception as exc:
+        logger.warning("Cancel order %s skipped: %s", orderId, exc)
 
 
 def _cancelAlgoSafe(symbol: str, algoId: int, baseUrl: str, apiKey: str, apiSecret: str) -> None:
